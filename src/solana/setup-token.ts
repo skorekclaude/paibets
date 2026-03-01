@@ -1,5 +1,5 @@
 /**
- * PAI Coin — Solana Token Setup (paibets version)
+ * PAI Coin — Solana Token Setup (openbets version)
  *
  * Usage:
  *   bun run src/solana/setup-token.ts          # devnet test

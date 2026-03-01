@@ -28,7 +28,7 @@ const CONFIG_FILE = join(
 
 // Metadata hosted on GitHub (permanent enough for now, can migrate to Arweave later)
 const METADATA_URI =
-  "https://raw.githubusercontent.com/skorekclaude/paibets/master/assets/metadata.json";
+  "https://raw.githubusercontent.com/skorekclaude/openbets/master/assets/metadata.json";
 
 async function main() {
   if (!existsSync(CONFIG_FILE)) {

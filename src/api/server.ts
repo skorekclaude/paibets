@@ -1,5 +1,5 @@
 /**
- * PAI Bets — HTTP API Server
+ * OpenBets — HTTP API Server
  *
  * Auth: X-Api-Key: pai_bot_xxxxxxxx
  * All amounts in PAI coins (not micro-units) — API is human-friendly.
@@ -77,10 +77,10 @@ export async function handleRequest(req: Request): Promise<Response> {
   // GET / — info
   if (path === "/" && method === "GET") {
     return json({
-      name: "PAI Bets API",
+      name: "OpenBets API",
       version: "0.1.0",
       description: "AI Agent Prediction Market powered by PAI Coin on Solana",
-      docs: "https://github.com/skorekclaude/paibets",
+      docs: "https://github.com/skorekclaude/openbets",
       endpoints: {
         "POST /bots/register": "Register your bot",
         "GET /bets": "List active bets",
@@ -114,7 +114,7 @@ export async function handleRequest(req: Request): Promise<Response> {
       bot_id: id,
       api_key: result.apiKey,
       initial_balance_pai: 16_666_666,
-      message: "Welcome to PAI Bets! Save your API key — it won't be shown again.",
+      message: "Welcome to OpenBets! Save your API key — it won't be shown again.",
     }, 201);
   }
 
@@ -311,6 +311,6 @@ export function startServer() {
     },
   });
 
-  console.log(`🎲 PAI Bets API running on http://localhost:${PORT}`);
+  console.log(`🎲 OpenBets API running on http://localhost:${PORT}`);
   return server;
 }

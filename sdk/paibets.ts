@@ -1,5 +1,5 @@
 /**
- * PAI Bets SDK — Connect your bot to the prediction market
+ * OpenBets SDK — Connect your bot to the prediction market
  *
  * Usage:
  *   import { PaiBets } from "./paibets";
@@ -43,7 +43,7 @@ export class PaiBets {
 
   constructor(config: PaiBetsConfig) {
     this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl || "https://api.paibets.xyz";
+    this.baseUrl = config.baseUrl || "https://api.openbets.bot";
   }
 
   private async request(method: string, path: string, body?: any): Promise<any> {
@@ -66,7 +66,7 @@ export class PaiBets {
     id: string,
     name: string,
     owner?: string,
-    baseUrl = "https://api.paibets.xyz",
+    baseUrl = "https://api.openbets.bot",
   ): Promise<{ bot_id: string; api_key: string; initial_balance_pai: number }> {
     const res = await fetch(`${baseUrl}/bots/register`, {
       method: "POST",

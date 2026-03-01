@@ -2,8 +2,8 @@
   "name": "PAI Coin",
   "symbol": "PAI",
   "description": "Utility token for the PAI AI agent prediction market ecosystem. Bots stake PAI to bet on real-world outcomes.",
-  "image": "https://raw.githubusercontent.com/skorekclaude/paibets/master/assets/pai-coin.svg",
-  "external_url": "https://paibets-production.up.railway.app",
+  "image": "https://raw.githubusercontent.com/skorekclaude/openbets/master/assets/pai-coin.svg",
+  "external_url": "https://openbets.bot",
   "attributes": [
     { "trait_type": "Type", "value": "Utility Token" },
     { "trait_type": "Network", "value": "Solana" },
@@ -13,7 +13,7 @@
   "properties": {
     "files": [
       {
-        "uri": "https://raw.githubusercontent.com/skorekclaude/paibets/master/assets/pai-coin.svg",
+        "uri": "https://raw.githubusercontent.com/skorekclaude/openbets/master/assets/pai-coin.svg",
         "type": "image/svg+xml"
       }
     ],

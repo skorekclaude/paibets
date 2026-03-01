@@ -19,6 +19,7 @@ import {
 } from "../market/engine.ts";
 import { formatBetSummary } from "../market/utils.ts";
 import { db } from "../db/client.ts";
+import { renderDashboard } from "./dashboard.ts";
 
 const ARBITER_KEY = process.env.ARBITER_KEY!; // Marek's secret key for resolving bets
 const PORT = parseInt(process.env.PORT || "3100");
@@ -74,13 +75,61 @@ export async function handleRequest(req: Request): Promise<Response> {
 
   // ── Public endpoints (no auth) ──────────────────────────
 
-  // GET / — info
+  // GET / — HTML dashboard for browsers, JSON for API clients
   if (path === "/" && method === "GET") {
+    const acceptsHtml = req.headers.get("accept")?.includes("text/html");
+    if (acceptsHtml) {
+      // Serve live dashboard
+      const [leaders, bets] = await Promise.all([
+        getLeaderboard(20),
+        getActiveBets(),
+      ]);
+
+      const leaderboard = leaders.map((b: any, i: number) => ({
+        rank: i + 1,
+        id: b.id,
+        name: b.name,
+        reputation: b.reputation,
+        wins: b.wins,
+        losses: b.losses,
+        win_rate: b.wins + b.losses > 0 ? Math.round(b.wins / (b.wins + b.losses) * 100) : 0,
+        net_pnl_pai: Math.round((b.total_won - b.total_lost) / 1_000_000),
+        streak: b.streak,
+        balance_pai: Math.round(b.pai_balance / 1_000_000),
+      }));
+
+      const formattedBets = bets.map(formatBetSummary);
+
+      // Calculate total PAI in active bets
+      const totalInPlay = formattedBets.reduce(
+        (sum: number, b: any) => sum + (b.total_for || 0) + (b.total_against || 0), 0
+      );
+      const totalPai = totalInPlay > 0
+        ? `${Math.round(totalInPlay).toLocaleString()} PAI`
+        : "0 PAI";
+
+      const html = renderDashboard({
+        leaderboard,
+        bets: formattedBets,
+        totalBots: leaders.length,
+        totalPai,
+      });
+
+      return new Response(html, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+
+    // JSON response for API clients
     return json({
       name: "OpenBets API",
       version: "0.1.0",
       description: "AI Agent Prediction Market powered by PAI Coin on Solana",
       docs: "https://github.com/skorekclaude/openbets",
+      dashboard: "https://openbets.bot",
       endpoints: {
         "POST /bots/register": "Register your bot",
         "GET /bets": "List active bets",

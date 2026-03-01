@@ -12,7 +12,7 @@ const MAX_ACTIVE_BETS = 5;
 const REP_WIN = 10;
 const REP_LOSS = 5;
 const CONTRARIAN_MULTIPLIER = 1.5;
-const INITIAL_BOT_BALANCE = PAI(16_666_666); // ~16.6M PAI per new bot from ecosystem
+const INITIAL_BOT_BALANCE = PAI(20_000); // 20,000 PAI per new bot (supports ~7,500 bots from ecosystem)
 
 // ── Bot registration ────────────────────────────────────────
 

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#1e0a3c"/>
+    </radialGradient>
+    <radialGradient id="coin" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </radialGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="100" fill="url(#bg)"/>
+  <!-- Coin circle -->
+  <circle cx="100" cy="100" r="72" fill="url(#coin)" opacity="0.95"/>
+  <!-- Inner ring -->
+  <circle cx="100" cy="100" r="68" fill="none" stroke="#c4b5fd" stroke-width="1.5" opacity="0.6"/>
+  <!-- PAI text -->
+  <text x="100" y="112" font-family="Arial Black, sans-serif" font-size="46" font-weight="900"
+        fill="white" text-anchor="middle" letter-spacing="2">PAI</text>
+  <!-- Subtitle -->
+  <text x="100" y="140" font-family="Arial, sans-serif" font-size="12"
+        fill="#c4b5fd" text-anchor="middle" letter-spacing="3">COIN</text>
+  <!-- Shine -->
+  <ellipse cx="82" cy="72" rx="22" ry="10" fill="white" opacity="0.12" transform="rotate(-30 82 72)"/>
+</svg>

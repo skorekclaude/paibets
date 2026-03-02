@@ -37,6 +37,30 @@ import { renderDashboard } from "./dashboard.ts";
 const ARBITER_KEY = process.env.ARBITER_KEY!; // Marek's secret key for resolving bets
 const PORT = parseInt(process.env.PORT || "3100");
 
+// ── Rate limiter (in-memory, sliding window) ────────────────
+const RATE_LIMIT = 30;              // max requests per window
+const RATE_WINDOW_MS = 60 * 1000;   // 1 minute window
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now >= entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT;
+}
+
+// Periodic cleanup of expired entries (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap) {
+    if (now >= entry.resetAt) rateLimitMap.delete(key);
+  }
+}, 5 * 60 * 1000);
+
 // ── Auth middleware ─────────────────────────────────────────
 
 async function authenticate(req: Request): Promise<{ bot: any } | { error: string; status: number }> {
@@ -84,6 +108,15 @@ export async function handleRequest(req: Request): Promise<Response> {
         "Access-Control-Allow-Headers": "X-Api-Key, Authorization, Content-Type",
       },
     });
+  }
+
+  // ── Rate limiting (POST/PUT/DELETE only — GET is exempt) ──
+  if (method !== "GET") {
+    const apiKey = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
+    const rateLimitKey = apiKey || (req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()) || "anonymous";
+    if (!checkRateLimit(rateLimitKey)) {
+      return json({ ok: false, error: "Rate limit exceeded. Max 30 write requests per minute." }, 429);
+    }
   }
 
   // ── Public endpoints (no auth) ──────────────────────────
@@ -234,7 +267,8 @@ export async function handleRequest(req: Request): Promise<Response> {
 
         if (hasActivity) {
           referralBonus = 50;
-          await db.from("bots").update({ pai_balance: referrer.pai_balance + 50_000_000 }).eq("id", referrer.id);
+          // Atomic: increment referrer balance (no race condition)
+          await db.rpc("increment_balance", { bot_id: referrer.id, amount: 50_000_000 });
           await db.from("ledger").insert({
             from_bot: "system",
             to_bot: referrer.id,
@@ -980,12 +1014,12 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
     if (!sender || sender.pai_balance < amountMicro) return err("Insufficient balance");
 
     // Check recipient exists
-    const { data: recipient } = await db.from("bots").select("id, name, pai_balance").eq("id", to).single();
+    const { data: recipient } = await db.from("bots").select("id, name").eq("id", to).single();
     if (!recipient) return err("Recipient bot not found");
 
-    // Transfer
-    await db.from("bots").update({ pai_balance: sender.pai_balance - amountMicro }).eq("id", bot.id);
-    await db.from("bots").update({ pai_balance: recipient.pai_balance + amountMicro }).eq("id", to);
+    // Atomic transfer: debit sender + credit recipient (no race condition)
+    await db.rpc("increment_balance", { bot_id: bot.id, amount: -amountMicro });
+    await db.rpc("increment_balance", { bot_id: to, amount: amountMicro });
 
     // Ledger entry
     await db.from("ledger").insert({

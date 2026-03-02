@@ -63,11 +63,9 @@ export async function placeOrder(
     return { ok: false, error: `Insufficient balance: ${fromPAI(bot.pai_balance)} PAI` };
   }
 
-  // Reserve funds
-  await db.from("bots").update({
-    pai_balance: bot.pai_balance - Number(amountMicro),
-    last_seen: new Date().toISOString(),
-  }).eq("id", botId);
+  // Atomic: reserve funds (no race condition)
+  await db.rpc("increment_balance", { bot_id: botId, amount: -Number(amountMicro) });
+  await db.from("bots").update({ last_seen: new Date().toISOString() }).eq("id", botId);
 
   // Insert order
   const { data: order, error } = await db.from("orders").insert({
@@ -81,8 +79,8 @@ export async function placeOrder(
   }).select().single();
 
   if (error) {
-    // Refund on error
-    await db.from("bots").update({ pai_balance: bot.pai_balance }).eq("id", botId);
+    // Refund on error (atomic — restore the deducted amount)
+    await db.rpc("increment_balance", { bot_id: botId, amount: Number(amountMicro) });
     return { ok: false, error: error.message };
   }
 
@@ -150,55 +148,42 @@ async function executeFill(
   matchPrice: number,
   takerTier: BotTier,
 ): Promise<void> {
-  // Update order filled amounts
-  const { data: makerOrder } = await db.from("orders").select("*").eq("id", makerOrderId).single();
-  const { data: takerOrder } = await db.from("orders").select("*").eq("id", takerOrderId).single();
-  if (!makerOrder || !takerOrder) return;
-
-  const newMakerFilled = makerOrder.filled + fillAmount;
-  const newTakerFilled = takerOrder.filled + fillAmount;
-
-  await db.from("orders").update({
-    filled: newMakerFilled,
-    status: newMakerFilled >= makerOrder.amount ? "filled" : "partial",
-  }).eq("id", makerOrderId);
-
-  await db.from("orders").update({
-    filled: newTakerFilled,
-    status: newTakerFilled >= takerOrder.amount ? "filled" : "partial",
-  }).eq("id", takerOrderId);
+  // Atomic: increment order filled amounts (no race condition)
+  await db.rpc("increment_order_filled", { p_order_id: makerOrderId, p_fill_amount: fillAmount });
+  await db.rpc("increment_order_filled", { p_order_id: takerOrderId, p_fill_amount: fillAmount });
 
   // Create matched position entries in positions table
   // (use existing positions table for resolution payout compatibility)
   const makerSide = takerSide === "for" ? "against" : "for";
 
   // Check if positions already exist (partial fills)
-  const { data: existingTaker } = await db.from("positions").select("id, amount").eq("bet_id", betId).eq("bot_id", takerId).single();
-  const { data: existingMaker } = await db.from("positions").select("id, amount").eq("bet_id", betId).eq("bot_id", makerId).single();
+  const { data: existingTaker } = await db.from("positions").select("id").eq("bet_id", betId).eq("bot_id", takerId).single();
+  const { data: existingMaker } = await db.from("positions").select("id").eq("bet_id", betId).eq("bot_id", makerId).single();
 
   if (existingTaker) {
-    await db.from("positions").update({ amount: existingTaker.amount + fillAmount }).eq("bet_id", betId).eq("bot_id", takerId);
+    // Atomic: increment position amount (no race condition)
+    await db.rpc("increment_position_amount", { p_bet_id: betId, p_bot_id: takerId, p_amount: fillAmount });
   } else {
     await db.from("positions").insert({ bet_id: betId, bot_id: takerId, side: takerSide, amount: fillAmount, reason: `orderbook@${matchPrice}` });
   }
 
   if (existingMaker) {
-    await db.from("positions").update({ amount: existingMaker.amount + fillAmount }).eq("bet_id", betId).eq("bot_id", makerId);
+    // Atomic: increment position amount (no race condition)
+    await db.rpc("increment_position_amount", { p_bet_id: betId, p_bot_id: makerId, p_amount: fillAmount });
   } else {
     await db.from("positions").insert({ bet_id: betId, bot_id: makerId, side: makerSide, amount: fillAmount, reason: `orderbook@${1 - matchPrice}` });
   }
 
-  // Update bet pool
-  const { data: bet } = await db.from("bets").select("total_pool").eq("id", betId).single();
-  if (bet) await db.from("bets").update({ total_pool: bet.total_pool + fillAmount * 2 }).eq("id", betId);
+  // Atomic: update bet pool (no race condition)
+  await db.rpc("increment_pool", { p_bet_id: betId, amount: fillAmount * 2 });
 
   // Taker fee → treasury (maker pays 0%)
   const feeBps = takerTier === "premium" ? TAKER_FEE_PREMIUM_BPS : TAKER_FEE_BPS;
   const feeAmount = Math.floor(fillAmount * feeBps / 10_000);
 
   if (feeAmount > 0) {
-    const { data: sys } = await db.from("bots").select("pai_balance").eq("id", "system").single();
-    if (sys) await db.from("bots").update({ pai_balance: sys.pai_balance + feeAmount }).eq("id", "system");
+    // Atomic: credit system treasury (no race condition)
+    await db.rpc("increment_balance", { bot_id: "system", amount: feeAmount });
     await db.from("ledger").insert({
       from_bot: takerId,
       to_bot: "system",
@@ -233,19 +218,16 @@ export async function cancelOrder(
   const unfilled = order.amount - order.filled;
   await db.from("orders").update({ status: "cancelled" }).eq("id", orderId);
 
-  // Refund unfilled portion
+  // Refund unfilled portion (atomic — no race condition)
   if (unfilled > 0) {
-    const { data: bot } = await db.from("bots").select("pai_balance").eq("id", botId).single();
-    if (bot) {
-      await db.from("bots").update({ pai_balance: bot.pai_balance + unfilled }).eq("id", botId);
-      await db.from("ledger").insert({
-        from_bot: `escrow:order:${orderId}`,
-        to_bot: botId,
-        amount: unfilled,
-        reason: `Order ${orderId} cancelled — refund`,
-        bet_id: order.bet_id,
-      });
-    }
+    await db.rpc("increment_balance", { bot_id: botId, amount: unfilled });
+    await db.from("ledger").insert({
+      from_bot: `escrow:order:${orderId}`,
+      to_bot: botId,
+      amount: unfilled,
+      reason: `Order ${orderId} cancelled — refund`,
+      bet_id: order.bet_id,
+    });
   }
 
   return { ok: true, refunded: fromPAI(unfilled) };

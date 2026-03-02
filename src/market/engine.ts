@@ -98,15 +98,13 @@ export async function verifyBot(
   if (!bot) return { ok: false, error: "Bot not found" };
   if (bot.verified) return { ok: false, error: "Already verified" };
 
-  const updateData: any = {
-    verified: true,
-    tier: bot.tier === "premium" ? "premium" : "verified",
-    pai_balance: bot.pai_balance + VERIFY_BONUS,
-  };
-  if (method === "x") updateData.x_handle = handle;
-  if (method === "email") updateData.email = handle;
-
-  await db.from("bots").update(updateData).eq("id", botId);
+  // Atomic: set verified + increment balance in one SQL call (no race condition)
+  const { data: newBalance } = await db.rpc("verify_bot_atomic", {
+    p_bot_id: botId,
+    p_bonus: VERIFY_BONUS,
+    p_method: method,
+    p_handle: handle,
+  });
 
   await db.from("ledger").insert({
     from_bot: "system",
@@ -115,7 +113,7 @@ export async function verifyBot(
     reason: `Verification bonus (${method}: ${handle})`,
   });
 
-  return { ok: true, newBalance: fromPAI(bot.pai_balance + VERIFY_BONUS) };
+  return { ok: true, newBalance: fromPAI(newBalance) };
 }
 
 // ── Premium deposit ─────────────────────────────────────────
@@ -125,21 +123,21 @@ export async function processPremiumDeposit(
   depositPai: number,
   txSignature: string,
 ): Promise<{ ok: boolean; newBalance?: number; matchBonus?: number; error?: string }> {
-  const { data: bot } = await db.from("bots").select("*").eq("id", botId).single();
+  const { data: bot } = await db.from("bots").select("id").eq("id", botId).single();
   if (!bot) return { ok: false, error: "Bot not found" };
 
   const depositMicro = PAI(depositPai);
   const matchBonus = calculateMatchBonus(depositPai);
 
   const totalCredit = depositMicro + matchBonus;
-  const newDeposit = (bot.deposit_amount || 0) + depositMicro;
 
-  await db.from("bots").update({
-    tier: "premium",
-    deposit_amount: newDeposit,
-    pai_balance: bot.pai_balance + totalCredit,
-    metadata: { ...(bot.metadata || {}), last_deposit_tx: txSignature },
-  }).eq("id", botId);
+  // Atomic: set tier + increment balance + deposit_amount in one SQL call (no race condition)
+  const { data: newBalance } = await db.rpc("process_deposit_atomic", {
+    p_bot_id: botId,
+    p_total_credit: totalCredit,
+    p_deposit_amount: depositMicro,
+    p_tx_signature: txSignature,
+  });
 
   // Log deposit
   await db.from("ledger").insert({
@@ -161,7 +159,7 @@ export async function processPremiumDeposit(
 
   return {
     ok: true,
-    newBalance: fromPAI(bot.pai_balance + totalCredit),
+    newBalance: fromPAI(newBalance),
     matchBonus: fromPAI(matchBonus),
   };
 }
@@ -252,11 +250,9 @@ export async function proposeBet(
     reason,
   });
 
-  // Deduct from balance (escrow in bet)
-  await db.from("bots").update({
-    pai_balance: bot.pai_balance - amountMicro,
-    last_seen: new Date().toISOString(),
-  }).eq("id", botId);
+  // Deduct from balance atomically (escrow in bet — no race condition)
+  await db.rpc("increment_balance", { bot_id: botId, amount: -amountMicro });
+  await db.from("bots").update({ last_seen: new Date().toISOString() }).eq("id", botId);
 
   await db.from("ledger").insert({
     from_bot: botId,
@@ -323,18 +319,16 @@ export async function joinBet(
     reason,
   });
 
-  await db.from("bets").update({ total_pool: bet.total_pool + amountMicro }).eq("id", betId);
+  // Atomic: increment bet pool (no race condition)
+  await db.rpc("increment_pool", { p_bet_id: betId, amount: amountMicro });
 
-  // Deduct bet + fee from taker
-  await db.from("bots").update({
-    pai_balance: bot.pai_balance - totalDeducted,
-    last_seen: new Date().toISOString(),
-  }).eq("id", botId);
+  // Atomic: deduct bet + fee from taker (no race condition)
+  await db.rpc("increment_balance", { bot_id: botId, amount: -totalDeducted });
+  await db.from("bots").update({ last_seen: new Date().toISOString() }).eq("id", botId);
 
-  // Fee → system treasury
+  // Fee → system treasury (atomic)
   if (feeAmount > 0) {
-    const { data: sys } = await db.from("bots").select("pai_balance").eq("id", "system").single();
-    if (sys) await db.from("bots").update({ pai_balance: sys.pai_balance + feeAmount }).eq("id", "system");
+    await db.rpc("increment_balance", { bot_id: "system", amount: feeAmount });
     await db.from("ledger").insert({
       from_bot: botId,
       to_bot: "system",
@@ -381,39 +375,28 @@ export async function resolveBet(
   const payouts: Record<string, number> = {};
 
   if (winners.length === 0 || losers.length === 0) {
-    // No contest — return all stakes
+    // No contest — return all stakes (atomic, no race condition)
     for (const pos of allPositions) {
-      await db.from("bots").update({
-        pai_balance: db.raw ? undefined : 0, // handled below
-      }).eq("id", pos.bot_id);
-
-      const { data: botData } = await db.from("bots").select("pai_balance").eq("id", pos.bot_id).single();
-      if (botData) {
-        await db.from("bots").update({ pai_balance: botData.pai_balance + pos.amount }).eq("id", pos.bot_id);
-      }
+      await db.rpc("increment_balance", { bot_id: pos.bot_id, amount: pos.amount });
       payouts[pos.bot_id] = 0;
     }
   } else {
-    // Distribute winnings
+    // Distribute winnings (atomic — no race condition)
     for (const winner of winners) {
       const share = winner.amount / totalWinnerStake;
       const profit = Math.floor(totalLoserStake * share);
       const totalReturn = winner.amount + profit;
 
-      const { data: botData } = await db.from("bots").select("pai_balance, wins, total_won, reputation, streak").eq("id", winner.bot_id).single();
-      if (botData) {
-        const isContrarian = winners.length < losers.length;
-        const repGain = isContrarian ? Math.floor(REP_WIN * CONTRARIAN_MULTIPLIER) : REP_WIN;
+      const isContrarian = winners.length < losers.length;
+      const repGain = isContrarian ? Math.floor(REP_WIN * CONTRARIAN_MULTIPLIER) : REP_WIN;
 
-        await db.from("bots").update({
-          pai_balance: botData.pai_balance + totalReturn,
-          wins: botData.wins + 1,
-          total_won: botData.total_won + profit,
-          reputation: botData.reputation + repGain,
-          streak: botData.streak > 0 ? botData.streak + 1 : 1,
-          last_seen: new Date().toISOString(),
-        }).eq("id", winner.bot_id);
-      }
+      // Atomic: update balance + stats in one SQL call (no race condition)
+      await db.rpc("update_winner_atomic", {
+        p_bot_id: winner.bot_id,
+        p_payout: totalReturn,
+        p_profit: profit,
+        p_rep_gain: repGain,
+      });
 
       await db.from("positions").update({ payout: profit }).eq("bet_id", betId).eq("bot_id", winner.bot_id);
       await db.from("ledger").insert({
@@ -425,19 +408,50 @@ export async function resolveBet(
       });
 
       payouts[winner.bot_id] = fromPAI(profit);
+
+      // ── Referral chain bonuses (5% L1, 1% L2) ──
+      if (profit > 0) {
+        const { data: winnerBot } = await db.from("bots").select("referred_by").eq("id", winner.bot_id).single();
+        if (winnerBot?.referred_by) {
+          // Level 1: 5% of net profit to direct referrer
+          const l1Amount = Math.floor(profit * 0.05);
+          if (l1Amount > 0) {
+            await db.rpc("increment_balance", { bot_id: winnerBot.referred_by, amount: l1Amount });
+            await db.from("ledger").insert({
+              from_bot: "system",
+              to_bot: winnerBot.referred_by,
+              amount: l1Amount,
+              reason: `Referral L1 (5%): ${winner.bot_id} won bet ${betId}`,
+              bet_id: betId,
+            });
+
+            // Level 2: 1% of net profit to L1 referrer's referrer
+            const { data: l1Bot } = await db.from("bots").select("referred_by").eq("id", winnerBot.referred_by).single();
+            if (l1Bot?.referred_by) {
+              const l2Amount = Math.floor(profit * 0.01);
+              if (l2Amount > 0) {
+                await db.rpc("increment_balance", { bot_id: l1Bot.referred_by, amount: l2Amount });
+                await db.from("ledger").insert({
+                  from_bot: "system",
+                  to_bot: l1Bot.referred_by,
+                  amount: l2Amount,
+                  reason: `Referral L2 (1%): ${winner.bot_id} won bet ${betId} (via ${winnerBot.referred_by})`,
+                  bet_id: betId,
+                });
+              }
+            }
+          }
+        }
+      }
     }
 
     for (const loser of losers) {
-      const { data: botData } = await db.from("bots").select("losses, total_lost, reputation, streak").eq("id", loser.bot_id).single();
-      if (botData) {
-        await db.from("bots").update({
-          losses: botData.losses + 1,
-          total_lost: botData.total_lost + loser.amount,
-          reputation: Math.max(0, botData.reputation - REP_LOSS),
-          streak: botData.streak < 0 ? botData.streak - 1 : -1,
-          last_seen: new Date().toISOString(),
-        }).eq("id", loser.bot_id);
-      }
+      // Atomic: update loser stats in one SQL call (no race condition)
+      await db.rpc("update_loser_atomic", {
+        p_bot_id: loser.bot_id,
+        p_loss_amount: loser.amount,
+        p_rep_loss: REP_LOSS,
+      });
 
       await db.from("positions").update({ payout: -loser.amount }).eq("bet_id", betId).eq("bot_id", loser.bot_id);
       payouts[loser.bot_id] = -fromPAI(loser.amount);
@@ -468,10 +482,8 @@ export async function cancelBet(
   const { data: positions } = await db.from("positions").select("*").eq("bet_id", betId);
   if (positions) {
     for (const pos of positions) {
-      const { data: botData } = await db.from("bots").select("pai_balance").eq("id", pos.bot_id).single();
-      if (botData) {
-        await db.from("bots").update({ pai_balance: botData.pai_balance + pos.amount }).eq("id", pos.bot_id);
-      }
+      // Atomic: refund balance (no race condition)
+      await db.rpc("increment_balance", { bot_id: pos.bot_id, amount: pos.amount });
       await db.from("ledger").insert({
         from_bot: `escrow:${betId}`,
         to_bot: pos.bot_id,

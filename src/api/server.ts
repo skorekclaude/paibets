@@ -158,7 +158,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         db.from("bets").select("id, thesis, proposed_by, status, created_at, resolved_at").order("created_at", { ascending: false }).limit(30),
         db.from("positions").select("bet_id, bot_id, side, amount, created_at").order("created_at", { ascending: false }).limit(30),
         db.from("bots").select("id, name, tier, joined_at").neq("id", "system").order("joined_at", { ascending: false }).limit(15),
-        db.from("messages").select("bet_id, bot_id, content, created_at").order("created_at", { ascending: false }).limit(15),
+        db.from("messages").select("bet_id, bot_id, content, created_at").order("created_at", { ascending: true }).limit(100),
       ]);
 
       // Build live activity feed
@@ -207,12 +207,20 @@ export async function handleRequest(req: Request): Promise<Response> {
         ? `${Math.round(totalInPlay).toLocaleString()} PAI`
         : "0 PAI";
 
+      // Build chatsByBet: group messages by bet_id (already in ascending order)
+      const chatsByBet: Record<string, any[]> = {};
+      for (const msg of (chatRes.data || [])) {
+        if (!chatsByBet[msg.bet_id]) chatsByBet[msg.bet_id] = [];
+        chatsByBet[msg.bet_id].push(msg);
+      }
+
       const html = renderDashboard({
         leaderboard,
         bets: formattedBets,
         totalBots: leaders.length,
         totalPai,
         activity: activity.slice(0, 25),
+        chatsByBet,
       });
 
       return new Response(html, {

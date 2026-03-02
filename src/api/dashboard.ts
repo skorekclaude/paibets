@@ -11,8 +11,9 @@ export function renderDashboard(data: {
   totalBots: number;
   totalPai: string;
   activity?: any[];
+  chatsByBet?: Record<string, any[]>;
 }): string {
-  const { leaderboard, bets, totalBots, totalPai, activity = [] } = data;
+  const { leaderboard, bets, totalBots, totalPai, activity = [], chatsByBet = {} } = data;
 
   // ── HTML escape — prevents XSS from bot names / bet thesis ──
   const esc = (s: unknown): string => String(s ?? "")
@@ -121,6 +122,27 @@ export function renderDashboard(data: {
         const forPct = total > 0 ? Math.round(totalFor / total * 100) : 50;
         const againstPct = 100 - forPct;
         const participants = (bet.sides?.for?.count || 0) + (bet.sides?.against?.count || 0);
+        const chatMsgs = chatsByBet[bet.id] || [];
+        const chatId = `chat-${bet.id.replace(/[^a-z0-9]/gi, "")}`;
+
+        // Chat messages HTML
+        const chatHtml = chatMsgs.length === 0
+          ? `<div class="text-[10px] text-gray-600 text-center py-3">No messages yet \u2014 be the first to comment</div>`
+          : chatMsgs.slice(-5).map((m: any) => {
+              const botEmoji = agentEmoji[m.bot_id] || "\u{1F916}";
+              const isForBot = bet.proposed_by === m.bot_id;
+              return `<div class="flex gap-1.5 items-start">
+                <span class="text-xs shrink-0">${botEmoji}</span>
+                <div class="flex-1 min-w-0">
+                  <span class="text-[10px] font-semibold text-purple-300">${esc(m.bot_id)}</span>
+                  ${isForBot ? `<span class="ml-1 text-[9px] text-purple-400/60">proposer</span>` : ""}
+                  <div class="text-[11px] text-gray-300 leading-snug break-words">${esc(m.content)}</div>
+                </div>
+              </div>`;
+            }).join("") +
+            (chatMsgs.length > 5
+              ? `<div class="text-[9px] text-gray-600 text-center pt-1">${chatMsgs.length - 5} more messages \u2014 <a href="/bets/${esc(bet.id)}/chat" class="text-purple-400 hover:text-purple-300">view all</a></div>`
+              : "");
 
         return `
         <div class="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-purple-500/30 transition-all">
@@ -132,9 +154,9 @@ export function renderDashboard(data: {
               </div>
               <div class="text-xs font-semibold text-white leading-snug">${esc(bet.thesis)}</div>
             </div>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">OPEN</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 shrink-0">OPEN</span>
           </div>
-          <div>
+          <div class="mb-3">
             <div class="flex justify-between text-[10px] mb-0.5">
               <span class="text-green-400">FOR ${forPct}%</span>
               <span class="text-red-400">AGAINST ${againstPct}%</span>
@@ -146,6 +168,18 @@ export function renderDashboard(data: {
             <div class="flex justify-between text-[10px] mt-0.5 text-gray-600">
               <span>${totalFor.toLocaleString()} PAI</span>
               <span>${totalAgainst.toLocaleString()} PAI</span>
+            </div>
+          </div>
+          <!-- Chat section -->
+          <div class="border-t border-white/5 pt-2">
+            <button onclick="document.getElementById('${chatId}').classList.toggle('hidden')"
+              class="flex items-center gap-1.5 text-[10px] text-gray-500 hover:text-gray-300 transition-colors w-full">
+              <span>\u{1F4AC}</span>
+              <span>Chat (${chatMsgs.length})</span>
+              <span class="ml-auto opacity-50">\u25BE</span>
+            </button>
+            <div id="${chatId}" class="${chatMsgs.length > 0 ? "" : "hidden"} mt-2 space-y-2 max-h-48 overflow-y-auto activity-scroll">
+              ${chatHtml}
             </div>
           </div>
         </div>`;

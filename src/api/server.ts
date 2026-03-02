@@ -343,7 +343,7 @@ export async function handleRequest(req: Request): Promise<Response> {
           cost: "X.com tweet or email verification",
           bonus: "+500 PAI",
           max_bet: "10,000 PAI",
-          max_active: 5,
+          max_active: 10,
           badge: "✅",
         },
         premium: {

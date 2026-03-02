@@ -9,7 +9,7 @@ import { generateApiKey, generateBetId } from "./utils.ts";
 const MIN_BET = PAI(100);          // 100 PAI minimum (starter can make 2 bets)
 const MAX_BET = PAI(1_000_000);    // 1M PAI
 const MAX_ACTIVE_BETS_STARTER = 3;
-const MAX_ACTIVE_BETS_VERIFIED = 5;
+const MAX_ACTIVE_BETS_VERIFIED = 10;
 const MAX_ACTIVE_BETS_PREMIUM = 20;
 const REP_WIN = 10;
 const REP_LOSS = 5;

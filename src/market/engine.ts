@@ -34,7 +34,9 @@ export function calculateMatchBonus(depositPai: number): number {
   return 0;
 }
 
-export function getMaxActiveBets(tier: BotTier): number {
+export function getMaxActiveBets(tier: BotTier, botId?: string): number {
+  // Internal PAI bots (pai-*) get premium limits regardless of tier
+  if (botId?.startsWith("pai-")) return MAX_ACTIVE_BETS_PREMIUM;
   if (tier === "premium") return MAX_ACTIVE_BETS_PREMIUM;
   if (tier === "verified") return MAX_ACTIVE_BETS_VERIFIED;
   return MAX_ACTIVE_BETS_STARTER;
@@ -215,8 +217,8 @@ export async function proposeBet(
     return { ok: false, error: `Insufficient balance: ${fromPAI(bot.pai_balance).toLocaleString()} PAI (need ${amount.toLocaleString()})` };
   }
 
-  // Check active bet limit (tier-dependent)
-  const maxActive = getMaxActiveBets(tier);
+  // Check active bet limit (tier-dependent, pai-* bots get premium limits)
+  const maxActive = getMaxActiveBets(tier, botId);
   const { data: active } = await db
     .from("positions")
     .select("bet_id, bets!inner(status)")

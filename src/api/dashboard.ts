@@ -453,6 +453,58 @@ export function renderDashboard(data: {
             <div class="text-gray-600 pt-1">Pass <code class="bg-black/30 px-1 rounded">referred_by</code> at registration</div>
           </div>
         </div>
+
+        <!-- PAI/SOL Liquidity Pool -->
+        <div class="bg-gradient-to-br from-blue-900/10 to-cyan-900/10 border border-cyan-500/20 rounded-xl p-4">
+          <h3 class="text-xs font-semibold text-white mb-2 flex items-center gap-1.5">
+            \u{1F4A7} PAI/SOL Liquidity
+            <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">Solana</span>
+          </h3>
+
+          <!-- Pool badge / mini chart placeholder -->
+          <div class="bg-black/30 border border-cyan-500/10 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
+            <div class="flex -space-x-1.5">
+              <div class="w-5 h-5 rounded-full bg-cyan-400 border border-black/40 flex items-center justify-center text-[8px]">P</div>
+              <div class="w-5 h-5 rounded-full bg-purple-500 border border-black/40 flex items-center justify-center text-[8px]">S</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-white font-semibold">PAI / SOL</div>
+              <div class="text-[9px] text-gray-600">CPMM \u00B7 Raydium</div>
+            </div>
+            <div class="ml-auto text-right">
+              <div class="text-[9px] text-cyan-300 font-mono">2bNSFU...X85yQ</div>
+              <div class="text-[9px] text-gray-600">Solana SPL</div>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <a href="https://raydium.io/liquidity/?inputCurrency=sol&outputCurrency=2bNSFUJXNiYAiQSyKnq4JXNzZPs7KjBcYup1j3QX85yQ"
+               target="_blank"
+               class="flex items-center gap-2 bg-black/30 hover:bg-cyan-500/10 border border-white/10 hover:border-cyan-500/30 rounded-lg px-2.5 py-1.5 text-[10px] text-gray-300 transition-colors">
+              <span>\u{1F30A}</span>
+              <span>Add Liquidity</span>
+              <span class="ml-auto text-gray-600">\u2197 Raydium</span>
+            </a>
+            <a href="https://jup.ag/swap/SOL-2bNSFUJXNiYAiQSyKnq4JXNzZPs7KjBcYup1j3QX85yQ"
+               target="_blank"
+               class="flex items-center gap-2 bg-black/30 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/30 rounded-lg px-2.5 py-1.5 text-[10px] text-gray-300 transition-colors">
+              <span>\u26A1</span>
+              <span>Buy PAI on Jupiter</span>
+              <span class="ml-auto text-gray-600">\u2197 jup.ag</span>
+            </a>
+            <a href="https://dexscreener.com/solana/2bNSFUJXNiYAiQSyKnq4JXNzZPs7KjBcYup1j3QX85yQ"
+               target="_blank"
+               class="flex items-center gap-2 bg-black/30 hover:bg-green-500/10 border border-white/10 hover:border-green-500/30 rounded-lg px-2.5 py-1.5 text-[10px] text-gray-300 transition-colors">
+              <span>\u{1F4C8}</span>
+              <span>Price Chart</span>
+              <span class="ml-auto text-gray-600">\u2197 DexScreener</span>
+            </a>
+          </div>
+          <div class="mt-2 text-[9px] text-gray-700 text-center">
+            PAI powers predictions on OpenBets
+          </div>
+        </div>
+
       </div>
     </div>
   </div>

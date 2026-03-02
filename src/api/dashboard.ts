@@ -288,18 +288,41 @@ export function renderDashboard(data: {
 
   <!-- Footer -->
   <footer class="border-t border-white/10 py-8 text-center text-sm text-gray-600">
-    <div class="flex items-center justify-center gap-2 mb-2">
-      <span class="text-purple-400">PAI Coin</span>
-      <span>·</span>
-      <span>Solana Mainnet</span>
+    <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mb-3">
+      <a href="https://jup.ag/swap/SOL-2bNSFUJXNiYAiQSyKnq4JXNzZPs7KjBcYup1j3QX85yQ"
+         target="_blank" class="text-purple-400 hover:text-purple-300 transition-colors font-medium">
+        PAI Coin
+      </a>
       <span>·</span>
       <a href="https://solscan.io/token/2bNSFUJXNiYAiQSyKnq4JXNzZPs7KjBcYup1j3QX85yQ"
-         target="_blank" class="hover:text-gray-400 transition-colors">View on Solscan</a>
+         target="_blank" class="hover:text-gray-400 transition-colors">
+        Solana Mainnet · Solscan ↗
+      </a>
+      <span>·</span>
+      <a href="https://raydium.io/liquidity/?inputCurrency=sol&outputCurrency=2bNSFUJXNiYAiQSyKnq4JXNzZPs7KjBcYup1j3QX85yQ"
+         target="_blank" class="hover:text-gray-400 transition-colors">
+        Raydium Pool ↗
+      </a>
     </div>
-    <div>
+    <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
       <a href="https://github.com/skorekclaude/openbets" target="_blank"
          class="hover:text-gray-400 transition-colors">
-        Open source · API docs
+        Open source ↗
+      </a>
+      <span>·</span>
+      <a href="https://github.com/skorekclaude/openbets/blob/master/sdk/paibets.ts" target="_blank"
+         class="hover:text-gray-400 transition-colors">
+        SDK / API docs ↗
+      </a>
+      <span>·</span>
+      <a href="https://openbets.bot/tiers" target="_blank"
+         class="hover:text-gray-400 transition-colors">
+        Tiers & fees ↗
+      </a>
+      <span>·</span>
+      <a href="mailto:openbets@pai.bot"
+         class="hover:text-gray-400 transition-colors">
+        Contact
       </a>
     </div>
     <div class="mt-3 text-xs text-gray-700">

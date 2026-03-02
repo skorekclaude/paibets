@@ -14,6 +14,11 @@ const MAX_ACTIVE_BETS_PREMIUM = 20;
 const REP_WIN = 10;
 const REP_LOSS = 5;
 const CONTRARIAN_MULTIPLIER = 1.5;
+const DISPUTE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2h dispute window
+
+// Maker/Taker fees (in basis points, 100 bps = 1%)
+const TAKER_FEE_BPS = 100;         // 1% for regular takers
+const TAKER_FEE_PREMIUM_BPS = 50;  // 0.5% for premium bots
 
 // ── Tier system ─────────────────────────────────────────────
 export type BotTier = "starter" | "verified" | "premium";
@@ -299,6 +304,17 @@ export async function joinBet(
     return { ok: false, error: `Insufficient balance: ${fromPAI(bot.pai_balance).toLocaleString()} PAI` };
   }
 
+  // ── Taker fee (maker = 0%, taker = 1%, premium taker = 0.5%) ──
+  const { data: botFull } = await db.from("bots").select("tier").eq("id", botId).single();
+  const takerTier = (botFull?.tier || "starter") as BotTier;
+  const feeBps = takerTier === "premium" ? TAKER_FEE_PREMIUM_BPS : TAKER_FEE_BPS;
+  const feeAmount = Math.floor(amountMicro * feeBps / 10_000);
+  const totalDeducted = amountMicro + feeAmount;
+
+  if (bot.pai_balance < totalDeducted) {
+    return { ok: false, error: `Insufficient balance: need ${fromPAI(totalDeducted).toLocaleString()} PAI (${fromPAI(amountMicro)} bet + ${fromPAI(feeAmount)} fee)` };
+  }
+
   await db.from("positions").insert({
     bet_id: betId,
     bot_id: botId,
@@ -309,10 +325,24 @@ export async function joinBet(
 
   await db.from("bets").update({ total_pool: bet.total_pool + amountMicro }).eq("id", betId);
 
+  // Deduct bet + fee from taker
   await db.from("bots").update({
-    pai_balance: bot.pai_balance - amountMicro,
+    pai_balance: bot.pai_balance - totalDeducted,
     last_seen: new Date().toISOString(),
   }).eq("id", botId);
+
+  // Fee → system treasury
+  if (feeAmount > 0) {
+    const { data: sys } = await db.from("bots").select("pai_balance").eq("id", "system").single();
+    if (sys) await db.from("bots").update({ pai_balance: sys.pai_balance + feeAmount }).eq("id", "system");
+    await db.from("ledger").insert({
+      from_bot: botId,
+      to_bot: "system",
+      amount: feeAmount,
+      reason: `Taker fee (${feeBps / 100}%) on bet ${betId}`,
+      bet_id: betId,
+    });
+  }
 
   await db.from("ledger").insert({
     from_bot: botId,
@@ -322,7 +352,7 @@ export async function joinBet(
     bet_id: betId,
   });
 
-  return { ok: true };
+  return { ok: true, fee: fromPAI(feeAmount) };
 }
 
 // ── Resolve bet ─────────────────────────────────────────────
@@ -500,4 +530,81 @@ export async function getBotStats(botId: string) {
     .order("created_at", { ascending: false })
     .limit(10);
   return { bot, positions };
+}
+
+// ── Optimistic Resolution ────────────────────────────────────
+// AI agent proposes outcome → 2h dispute window → auto-resolve if no disputes
+// Inspired by UMA Optimistic Oracle (Polymarket)
+
+export async function proposeResolution(
+  betId: string,
+  proposedBy: string,       // AI agent bot_id
+  outcome: "for" | "against",
+  explanation: string,
+): Promise<{ ok: boolean; disputeDeadline?: string; error?: string }> {
+  const { data: bet } = await db.from("bets").select("*").eq("id", betId).single();
+  if (!bet) return { ok: false, error: "Bet not found" };
+  if (bet.status !== "open" && bet.status !== "closed") {
+    return { ok: false, error: `Bet already resolved or in dispute: ${bet.status}` };
+  }
+
+  const disputeDeadline = new Date(Date.now() + DISPUTE_WINDOW_MS);
+
+  await db.from("bets").update({
+    status: "pending_resolution",
+    proposed_outcome: outcome,
+    proposed_by_agent: proposedBy,
+    dispute_deadline: disputeDeadline.toISOString(),
+    resolution: explanation,
+  }).eq("id", betId);
+
+  return { ok: true, disputeDeadline: disputeDeadline.toISOString() };
+}
+
+export async function disputeResolution(
+  betId: string,
+  disputedBy: string,  // bot_id challenging
+  reason: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: bet } = await db.from("bets").select("*").eq("id", betId).single();
+  if (!bet) return { ok: false, error: "Bet not found" };
+  if (bet.status !== "pending_resolution") {
+    return { ok: false, error: `Bet not pending resolution (status: ${bet.status})` };
+  }
+  if (new Date(bet.dispute_deadline) <= new Date()) {
+    return { ok: false, error: "Dispute window has closed (2h expired)" };
+  }
+
+  await db.from("bets").update({
+    status: "disputed",
+    dispute_reason: `${disputedBy}: ${reason}`,
+  }).eq("id", betId);
+
+  return { ok: true };
+}
+
+// Called on GET /bets (lazy evaluation — no cron needed)
+export async function autoResolveExpired(): Promise<number> {
+  const now = new Date().toISOString();
+  const { data: pending } = await db
+    .from("bets")
+    .select("*")
+    .eq("status", "pending_resolution")
+    .lt("dispute_deadline", now);
+
+  if (!pending?.length) return 0;
+
+  let resolved = 0;
+  for (const bet of pending) {
+    if (bet.proposed_outcome) {
+      await resolveBet(
+        bet.id,
+        bet.proposed_outcome as "for" | "against",
+        `ai:${bet.proposed_by_agent}`,
+        `Auto-resolved (no disputes in 2h): ${bet.resolution}`,
+      );
+      resolved++;
+    }
+  }
+  return resolved;
 }

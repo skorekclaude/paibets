@@ -19,8 +19,17 @@ import {
   verifyBot,
   processPremiumDeposit,
   calculateMatchBonus,
+  proposeResolution,
+  disputeResolution,
+  autoResolveExpired,
   type BotTier,
 } from "../market/engine.ts";
+import {
+  placeOrder,
+  cancelOrder,
+  getOrderBook,
+  getMyOrders,
+} from "../market/orderbook.ts";
 import { formatBetSummary } from "../market/utils.ts";
 import { db } from "../db/client.ts";
 import { renderDashboard } from "./dashboard.ts";
@@ -212,12 +221,14 @@ export async function handleRequest(req: Request): Promise<Response> {
     });
   }
 
-  // GET /bets — list active bets
+  // GET /bets — list active bets (also auto-resolves expired dispute windows)
   if (path === "/bets" && method === "GET") {
+    const autoResolved = await autoResolveExpired();
     const bets = await getActiveBets();
     return json({
       ok: true,
       count: bets.length,
+      auto_resolved: autoResolved || undefined,
       bets: bets.map(formatBetSummary),
     });
   }
@@ -425,6 +436,99 @@ export async function handleRequest(req: Request): Promise<Response> {
     if (!result.ok) return err(result.error || "Failed to cancel bet");
 
     return json({ ok: true, message: `Bet ${cancelMatch[1]} cancelled, all stakes returned` });
+  }
+
+  // ── Optimistic Resolution ──────────────────────────────────
+
+  // POST /bets/:id/propose-resolution — AI agent proposes outcome (2h dispute window)
+  const proposeMatch = path.match(/^\/bets\/([^\/]+)\/propose-resolution$/);
+  if (proposeMatch && method === "POST") {
+    let body: any;
+    try { body = await req.json(); } catch { return err("Invalid JSON"); }
+
+    const { outcome, explanation } = body;
+    if (!["for", "against"].includes(outcome)) return err("outcome must be 'for' or 'against'");
+    if (!explanation) return err("explanation is required");
+
+    const result = await proposeResolution(proposeMatch[1], bot.id, outcome, explanation);
+    if (!result.ok) return err(result.error || "Failed to propose resolution");
+
+    return json({
+      ok: true,
+      status: "pending_resolution",
+      proposed_outcome: outcome,
+      dispute_deadline: result.disputeDeadline,
+      message: `Outcome proposed: ${outcome}. 2h dispute window open. If no disputes → auto-resolved. To dispute: POST /bets/${proposeMatch[1]}/dispute`,
+    });
+  }
+
+  // POST /bets/:id/dispute — challenge a proposed resolution
+  const disputeMatch = path.match(/^\/bets\/([^\/]+)\/dispute$/);
+  if (disputeMatch && method === "POST") {
+    let body: any;
+    try { body = await req.json(); } catch { return err("Invalid JSON"); }
+
+    const { reason } = body;
+    if (!reason) return err("reason is required (provide counter-evidence)");
+
+    const result = await disputeResolution(disputeMatch[1], bot.id, reason);
+    if (!result.ok) return err(result.error || "Failed to dispute resolution");
+
+    return json({
+      ok: true,
+      status: "disputed",
+      message: "Resolution disputed. Bet moved to arbitration — Marek will decide final outcome.",
+    });
+  }
+
+  // ── Order Book ─────────────────────────────────────────────
+
+  // POST /bets/:id/orders — place limit order (price-based betting)
+  const ordersMatch = path.match(/^\/bets\/([^\/]+)\/orders$/);
+  if (ordersMatch && method === "POST") {
+    let body: any;
+    try { body = await req.json(); } catch { return err("Invalid JSON"); }
+
+    const { side, price, amount } = body;
+    if (!["for", "against"].includes(side)) return err("side must be 'for' or 'against'");
+    if (!price || isNaN(price) || price < 0.01 || price > 0.99) {
+      return err("price must be between 0.01 and 0.99 (implied probability)");
+    }
+    if (!amount || isNaN(amount)) return err("amount (PAI) is required");
+
+    const result = await placeOrder(bot.id, ordersMatch[1], side, Number(price), Number(amount));
+    if (!result.ok) return err(result.error || "Failed to place order");
+
+    return json({
+      ok: true,
+      order_id: result.orderId,
+      matched_pai: result.matched ? result.matched / 1_000_000 : 0,
+      message: result.matched
+        ? `Order placed and partially matched: ${result.matched / 1_000_000} PAI filled`
+        : `Order placed at price ${price} — waiting for match`,
+    }, 201);
+  }
+
+  // GET /bets/:id/orderbook — view order book for a bet
+  const obMatch = path.match(/^\/bets\/([^\/]+)\/orderbook$/);
+  if (obMatch && method === "GET") {
+    const { bids, asks } = await getOrderBook(obMatch[1]);
+    return json({ ok: true, bids, asks });
+  }
+
+  // DELETE /orders/:id — cancel order
+  const delOrderMatch = path.match(/^\/orders\/(\d+)$/);
+  if (delOrderMatch && method === "DELETE") {
+    const result = await cancelOrder(Number(delOrderMatch[1]), bot.id);
+    if (!result.ok) return err(result.error || "Failed to cancel order");
+    return json({ ok: true, refunded_pai: result.refunded });
+  }
+
+  // GET /orders — my open orders
+  if (path === "/orders" && method === "GET") {
+    const betId = url.searchParams.get("bet_id") || undefined;
+    const orders = await getMyOrders(bot.id, betId);
+    return json({ ok: true, orders });
   }
 
   return err("Not found", 404);

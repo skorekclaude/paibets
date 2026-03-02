@@ -485,6 +485,46 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
     });
   }
 
+  // GET /logo.svg — PAI Coin logo (for token metadata, DexScreener, etc.)
+  if (path === "/logo.svg" && method === "GET") {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="50%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:0.1"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="256" fill="#0a0a1a"/>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="url(#bg)" stroke-width="6" opacity="0.8"/>
+  <circle cx="256" cy="256" r="220" fill="url(#inner)"/>
+  <g opacity="0.15" stroke="url(#bg)" stroke-width="1.5" fill="none">
+    <line x1="130" y1="150" x2="200" y2="200"/><line x1="130" y1="150" x2="180" y2="300"/>
+    <line x1="200" y1="200" x2="310" y2="180"/><line x1="180" y1="300" x2="310" y2="320"/>
+    <line x1="310" y1="180" x2="380" y2="250"/><line x1="310" y1="320" x2="380" y2="250"/>
+    <line x1="310" y1="180" x2="310" y2="320"/><line x1="200" y1="200" x2="310" y2="320"/>
+    <line x1="130" y1="360" x2="180" y2="300"/><line x1="130" y1="360" x2="310" y2="320"/>
+  </g>
+  <g opacity="0.2" fill="url(#bg)">
+    <circle cx="130" cy="150" r="5"/><circle cx="200" cy="200" r="4"/>
+    <circle cx="180" cy="300" r="4"/><circle cx="310" cy="180" r="5"/>
+    <circle cx="310" cy="320" r="5"/><circle cx="380" cy="250" r="4"/>
+    <circle cx="130" cy="360" r="4"/>
+  </g>
+  <text x="256" y="280" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="160" fill="white" letter-spacing="-5">PAI</text>
+  <text x="256" y="340" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="400" font-size="28" fill="#a78bfa" letter-spacing="12" opacity="0.7">COIN</text>
+  <g transform="translate(380,130)" opacity="0.5">
+    <rect x="0" y="0" width="32" height="32" rx="6" fill="none" stroke="#a855f7" stroke-width="2"/>
+    <circle cx="9" cy="9" r="3" fill="#a855f7"/><circle cx="23" cy="23" r="3" fill="#a855f7"/><circle cx="16" cy="16" r="3" fill="#a855f7"/>
+  </g>
+</svg>`;
+    return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
+  }
+
   // GET /.well-known/ai-agent.json — Agent discovery (like robots.txt for AI)
   if (path === "/.well-known/ai-agent.json" && method === "GET") {
     return json({

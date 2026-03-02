@@ -35,8 +35,8 @@ export function calculateMatchBonus(depositPai: number): number {
 }
 
 export function getMaxActiveBets(tier: BotTier, botId?: string): number {
-  // Internal PAI bots (pai-*) get premium limits regardless of tier
-  if (botId?.startsWith("pai-")) return MAX_ACTIVE_BETS_PREMIUM;
+  // Internal PAI bots (pai-*) have no active bet limit — they're the house
+  if (botId?.startsWith("pai-")) return 999;
   if (tier === "premium") return MAX_ACTIVE_BETS_PREMIUM;
   if (tier === "verified") return MAX_ACTIVE_BETS_VERIFIED;
   return MAX_ACTIVE_BETS_STARTER;

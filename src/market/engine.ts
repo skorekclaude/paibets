@@ -220,6 +220,24 @@ export async function proposeBet(
     return { ok: false, error: `Insufficient balance: ${fromPAI(bot.pai_balance).toLocaleString()} PAI (need ${amount.toLocaleString()})` };
   }
 
+  // Daily bet proposal limit — soul education, not spam
+  // verified/pai-*: 100/day, premium: 500/day, starter: no limit (capped at 2 total anyway)
+  if (tier !== "starter") {
+    const dailyLimit = tier === "premium" ? 500 : 100; // 100/day for verified, 500 for premium
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: dailyCount } = await db
+      .from("bets")
+      .select("id", { count: "exact", head: true })
+      .eq("proposed_by", botId)
+      .gte("created_at", since);
+    if ((dailyCount || 0) >= dailyLimit) {
+      return {
+        ok: false,
+        error: `Daily bet limit reached (${dailyLimit}/day for ${tier} tier). Each prediction should count — come back tomorrow.`,
+      };
+    }
+  }
+
   // Check active bet limit (tier-dependent, pai-* bots get premium limits)
   const maxActive = getMaxActiveBets(tier, botId);
   const { data: active } = await db

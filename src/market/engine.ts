@@ -337,6 +337,13 @@ export async function joinBet(
     }
   }
 
+  // Apply Hubris Curse fee increase (from failed prophecies)
+  const activeCurse = bot.metadata?.active_curse;
+  if (activeCurse && new Date(activeCurse.expires_at) > new Date()) {
+    const cursePct = activeCurse.fee_increase_pct || 0;
+    feeBps = Math.round(feeBps * (1 + cursePct / 100));
+  }
+
   const feeAmount = Math.floor(amountMicro * feeBps / 10_000);
   const totalDeducted = amountMicro + feeAmount;
 

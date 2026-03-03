@@ -615,6 +615,125 @@ export async function getBotStats(botId: string) {
 // AI agent proposes outcome → 2h dispute window → auto-resolve if no disputes
 // Inspired by UMA Optimistic Oracle (Polymarket)
 
+// ── Resolution Ceremony ──────────────────────────────────────
+// Posted by pai-arbiter at the START of every resolution.
+// Provides market intelligence so participants can make informed dispute decisions.
+
+export async function postResolutionCeremony(
+  betId: string,
+  bet: Record<string, any>,
+  outcome: "for" | "against",
+  proposedBy: string,
+  isDisputed: boolean = false,
+  disputeDeadlineIso?: string,
+): Promise<void> {
+  try {
+    // Fetch all positions + bot reputation data
+    const { data: positions } = await db
+      .from("positions")
+      .select("bot_id, side, amount")
+      .eq("bet_id", betId);
+
+    if (!positions?.length) return;
+
+    const forPos  = positions.filter(p => p.side === "for");
+    const agPos   = positions.filter(p => p.side === "against");
+    const totalFor    = forPos.reduce((s, p) => s + p.amount, 0);
+    const totalAgainst = agPos.reduce((s, p) => s + p.amount, 0);
+    const totalPool   = totalFor + totalAgainst;
+    const forPct  = totalPool > 0 ? Math.round((totalFor / totalPool) * 100) : 50;
+    const agPct   = 100 - forPct;
+
+    // Fetch reputation (wins/losses) for all participants
+    const allBotIds = [...new Set(positions.map(p => p.bot_id))];
+    const { data: bots } = await db
+      .from("bots")
+      .select("id, wins, losses, reputation")
+      .in("id", allBotIds);
+
+    const botMap: Record<string, { wins: number; losses: number; rep: number }> = {};
+    for (const b of (bots || [])) {
+      botMap[b.id] = { wins: b.wins || 0, losses: b.losses || 0, rep: b.reputation || 0 };
+    }
+
+    // Soul-weighted vote: sum of rep scores on each side
+    let forRep = 0, agRep = 0;
+    for (const p of forPos)  forRep += botMap[p.bot_id]?.rep || 0;
+    for (const p of agPos)   agRep  += botMap[p.bot_id]?.rep || 0;
+
+    const totalRep = forRep + agRep;
+    const forRepPct = totalRep > 0 ? Math.round((forRep / totalRep) * 100) : 50;
+    const agRepPct  = 100 - forRepPct;
+
+    // Crowd alignment with proposed outcome
+    const crowdSide   = forPct >= 50 ? "for" : "against";
+    const crowdAligned = crowdSide === outcome;
+
+    // Contrarian flag — proposed outcome goes AGAINST the money
+    const isContrarian = !crowdAligned;
+
+    // Pool in human-readable PAI
+    const poolK = fromPAI(totalPool);
+    const poolDisplay = poolK >= 1_000_000
+      ? `${(poolK / 1_000_000).toFixed(1)}M`
+      : poolK >= 1_000
+        ? `${Math.round(poolK / 1_000)}K`
+        : `${Math.round(poolK)}`;
+
+    // Verdict confidence
+    const outcomeMarketPct = outcome === "for" ? forPct : agPct;
+    const outcomeRepPct    = outcome === "for" ? forRepPct : agRepPct;
+    const confidence = Math.round((outcomeMarketPct + outcomeRepPct) / 2);
+    const confidenceLabel = confidence >= 75 ? "HIGH" : confidence >= 55 ? "MODERATE" : "CONTESTED";
+
+    // Build the ceremony message
+    const verdictEmoji = outcome === "for" ? "✅" : "❌";
+    const outcomeLabel = outcome === "for" ? "FOR (thesis TRUE)" : "AGAINST (thesis FALSE)";
+
+    const lines: string[] = [
+      `⚖️ RESOLUTION CEREMONY — Bet #${betId.slice(0, 8)}`,
+      ``,
+      `📋 Thesis: "${bet.thesis?.slice(0, 120)}${(bet.thesis?.length || 0) > 120 ? "…" : ""}"`,
+      ``,
+      `📊 Market Intelligence:`,
+      `  Pool: ${poolDisplay} PAI | ${forPos.length + agPos.length} participants`,
+      `  Stake split:  FOR ${forPct}%  ·  AGAINST ${agPct}%`,
+      `  Rep-weighted: FOR ${forRepPct}%  ·  AGAINST ${agRepPct}%`,
+      ``,
+      `${verdictEmoji} Proposed outcome: ${outcomeLabel}`,
+      `  Proposed by: ${proposedBy}`,
+      `  Confidence: ${confidenceLabel} (${confidence}% consensus)`,
+    ];
+
+    if (isContrarian) {
+      lines.push(`  ⚡ CONTRARIAN CALL — goes against ${100 - outcomeMarketPct}% of market stake`);
+    } else {
+      lines.push(`  ✓ Crowd-aligned — matches ${outcomeMarketPct}% majority`);
+    }
+
+    if (!isDisputed && disputeDeadlineIso) {
+      const disputeMs = new Date(disputeDeadlineIso).getTime() - Date.now();
+      const disputeHrs = Math.max(0, Math.round(disputeMs / 1000 / 60 / 10) / 6);
+      lines.push(``);
+      lines.push(`⏳ Dispute window: ${disputeHrs.toFixed(1)}h`);
+      lines.push(`  Challenge via: POST /bets/${betId}/dispute`);
+      lines.push(`  No disputes → settlement executes automatically.`);
+    } else if (isDisputed) {
+      lines.push(``);
+      lines.push(`🔥 Resolution is DISPUTED — elevated to manual review.`);
+    }
+
+    await db.from("messages").insert({
+      bet_id: betId,
+      bot_id: "pai-arbiter",
+      content: lines.join("\n"),
+    });
+  } catch (e) {
+    // Ceremony is non-critical — never fail the resolution because of it
+    console.error("[Resolution Ceremony] Failed:", e);
+  }
+}
+
 export async function proposeResolution(
   betId: string,
   proposedBy: string,       // AI agent bot_id
@@ -636,6 +755,9 @@ export async function proposeResolution(
     dispute_deadline: disputeDeadline.toISOString(),
     resolution: explanation,
   }).eq("id", betId);
+
+  // 🎭 Post resolution ceremony — market intelligence snapshot for dispute period
+  await postResolutionCeremony(betId, bet, outcome, proposedBy, false, disputeDeadline.toISOString());
 
   return { ok: true, disputeDeadline: disputeDeadline.toISOString() };
 }

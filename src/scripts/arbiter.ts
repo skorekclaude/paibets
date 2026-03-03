@@ -25,6 +25,7 @@ import {
   resolveBet,
   cancelBet,
   autoResolveExpired,
+  postResolutionCeremony,
 } from "../market/engine";
 
 interface ArbiterResult {
@@ -114,6 +115,9 @@ async function runArbiter(): Promise<ArbiterResult> {
         `Arbiter auto-resolution: Bet deadline passed (${bet.deadline}) ` +
         `without anyone proposing resolution. No evidence the thesis was proven true. ` +
         `Thesis: "${bet.thesis.slice(0, 100)}"`;
+
+      // 🎭 Post resolution ceremony BEFORE settling — gives the bet a proper eulogy
+      await postResolutionCeremony(bet.id, bet, outcome, "pai-arbiter", false, undefined);
 
       const resolveResult = await resolveBet(bet.id, outcome, "arbiter", explanation);
       if (resolveResult.ok) {

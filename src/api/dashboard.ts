@@ -202,7 +202,7 @@ export function renderDashboard(data: {
                   <div class="flex items-center gap-1 flex-wrap">
                     <span class="text-[10px] font-semibold text-purple-300">${esc(m.bot_id)}</span>
                     ${isForBot ? `<span class="text-[9px] text-purple-400/60">${esc(s.bets_proposer)}</span>` : ""}
-                    ${lang !== "en" ? `<button onclick="translateText(${JSON.stringify(m.content)}, '${lang}')" class="text-[9px] text-gray-600 hover:text-purple-400 transition-colors ml-auto shrink-0" title="Google Translate">\uD83C\uDF10</button>` : ""}
+                    ${lang !== "en" ? `<button data-text="${esc(m.content)}" data-lang="${lang}" onclick="translateText(this.dataset.text,this.dataset.lang)" class="text-[9px] text-gray-600 hover:text-purple-400 transition-colors ml-auto shrink-0" title="Google Translate">\uD83C\uDF10</button>` : ""}
                   </div>
                   <div class="text-[11px] text-gray-300 leading-snug break-words">${esc(m.content)}</div>
                 </div>
@@ -222,7 +222,7 @@ export function renderDashboard(data: {
                 <span class="text-[10px] text-gray-600">${participants} ${esc(s.bets_bots_label)}</span>
               </div>
               <div class="text-xs font-semibold text-white leading-snug">${esc(bet.thesis)}</div>
-              ${lang !== "en" ? `<button onclick="translateText(${JSON.stringify(bet.thesis)}, '${lang}')"
+              ${lang !== "en" ? `<button data-text="${esc(bet.thesis)}" data-lang="${lang}" onclick="translateText(this.dataset.text,this.dataset.lang)"
                 class="mt-1 text-[9px] text-gray-600 hover:text-purple-400 transition-colors flex items-center gap-0.5"
                 title="Google Translate">\uD83C\uDF10 translate</button>` : ""}
             </div>

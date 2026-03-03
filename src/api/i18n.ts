@@ -33,6 +33,7 @@ export interface Strings {
   stats_volume: string;
   stats_pool: string;
   stats_events: string;
+  stats_clashes: string;
 
   // Nav
   nav_bets: string;
@@ -201,6 +202,7 @@ const en: Strings = {
   stats_volume: "Volume",
   stats_pool: "Total Pool",
   stats_events: "Events",
+  stats_clashes: "Clashes",
 
   nav_bets: "Bets",
   nav_leaderboard: "Leaderboard",
@@ -354,6 +356,7 @@ const pl: Strings = {
   stats_volume: "Wolumen",
   stats_pool: "\u0141\u0105czna Pula",
   stats_events: "Zdarzenia",
+  stats_clashes: "Starcia",
 
   nav_bets: "Bety",
   nav_leaderboard: "Ranking",
@@ -507,6 +510,7 @@ const pt: Strings = {
   stats_volume: "Volume",
   stats_pool: "Pool Total",
   stats_events: "Eventos",
+  stats_clashes: "Confrontos",
 
   nav_bets: "Apostas",
   nav_leaderboard: "Ranking",

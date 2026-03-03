@@ -13,11 +13,12 @@ export function renderDashboard(data: {
   totalBots: number;
   totalPai: string;
   activity?: any[];
+  clashes?: number;
   chatsByBet?: Record<string, any[]>;
   lang?: Lang;
   strings?: Strings;
 }): string {
-  const { leaderboard, bets, totalBots, totalPai, activity = [], chatsByBet = {}, lang = "en", strings: t } = data;
+  const { leaderboard, bets, totalBots, totalPai, activity = [], clashes = 0, chatsByBet = {}, lang = "en", strings: t } = data;
 
   // Fallback strings (English) if not provided
   const s: Strings = t || {
@@ -375,9 +376,9 @@ export function renderDashboard(data: {
         <div class="text-xl font-bold text-white mono">${totalPai}</div>
         <div class="text-[10px] text-gray-500 mt-0.5">${esc(s.stats_pool)}</div>
       </div>
-      <div class="bg-white/5 border border-white/10 rounded-xl p-3">
-        <div class="text-xl font-bold text-white mono">${activity.length}</div>
-        <div class="text-[10px] text-gray-500 mt-0.5">${esc(s.stats_events)}</div>
+      <div class="bg-white/5 border border-white/10 rounded-xl p-3" title="Active bets with both FOR and AGAINST sides">
+        <div class="text-xl font-bold text-orange-400 mono">⚔️ ${clashes}</div>
+        <div class="text-[10px] text-gray-500 mt-0.5">${esc(s.stats_clashes)}</div>
       </div>
     </div>
   </section>

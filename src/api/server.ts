@@ -228,6 +228,11 @@ export async function handleRequest(req: Request): Promise<Response> {
         chatsByBet[msg.bet_id].push(msg);
       }
 
+      // Clashes = active bets with BOTH for and against sides (adversarial health metric)
+      const clashes = formattedBets.filter((b: any) =>
+        b.sides.for.count > 0 && b.sides.against.count > 0
+      ).length;
+
       const lang = detectLang(req, url);
       const strings = getStrings(lang);
       const html = renderDashboard({
@@ -236,6 +241,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         totalBots: leaders.length,
         totalPai,
         activity: activity.slice(0, 25),
+        clashes,
         chatsByBet,
         lang,
         strings,

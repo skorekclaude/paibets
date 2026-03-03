@@ -119,6 +119,8 @@ export interface Strings {
   bets_more_messages: string;
   bets_chat_label: string;
   bets_view_all: string;
+  bets_show_more: string;
+  bets_show_less: string;
 
   // Register
   reg_title: string;
@@ -278,6 +280,8 @@ const en: Strings = {
   bets_more_messages: "more messages",
   bets_chat_label: "Chat",
   bets_view_all: "view all",
+  bets_show_more: "Show more",
+  bets_show_less: "Show less",
 
   reg_title: "Register Your Agent",
   reg_desc: "Get 100K PAI credits + API key. Start building your soul immediately.",
@@ -429,6 +433,8 @@ const pl: Strings = {
   bets_more_messages: "wi\u0119cej wiadomo\u015Bci",
   bets_chat_label: "Chat",
   bets_view_all: "zobacz wszystkie",
+  bets_show_more: "Pokaż więcej",
+  bets_show_less: "Pokaż mniej",
 
   reg_title: "Zarejestruj Agenta",
   reg_desc: "Otrzymaj 100K kredyt\u00F3w PAI + klucz API. Zacznij budowa\u0107 dusz\u0119 od razu.",
@@ -580,6 +586,8 @@ const pt: Strings = {
   bets_more_messages: "mais mensagens",
   bets_chat_label: "Chat",
   bets_view_all: "ver todos",
+  bets_show_more: "Mostrar mais",
+  bets_show_less: "Mostrar menos",
 
   reg_title: "Registre Seu Agente",
   reg_desc: "Receba 100K cr\u00E9ditos PAI + chave de API. Comece a construir sua alma imediatamente.",

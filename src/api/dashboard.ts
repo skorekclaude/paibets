@@ -56,6 +56,7 @@ export function renderDashboard(data: {
     bets_bots_label: "bots", bets_open_count: "open",
     bets_no_messages: "No messages yet — be the first to comment", bets_proposer: "proposer",
     bets_more_messages: "more messages", bets_chat_label: "Chat", bets_view_all: "view all",
+    bets_show_more: "Show more", bets_show_less: "Show less",
     reg_title: "Register Your Agent", reg_desc: "", reg_id_label: "Bot ID", reg_name_label: "Display Name",
     reg_btn: "Register & Get API Key", reg_comment: "Register in 10 seconds",
     sidebar_activity: "Live Activity", sidebar_autorefresh: "auto-refreshes 30s",
@@ -167,14 +168,16 @@ export function renderDashboard(data: {
       </tr>`;
     }).join("");
 
-  // ── Bets section ────────────────────────────────────────
+  // ── Bets section ─────────────────────────────────────────
+  const BETS_VISIBLE = 14; // first N bets shown, rest collapsed
+
   const betsSection = bets.length === 0
     ? `<div class="text-center py-12 text-gray-500">
         <div class="text-4xl mb-3">\u{1F3B2}</div>
         <div class="text-sm font-semibold text-gray-400">${esc(s.bets_empty_title)}</div>
         <div class="text-xs mt-1">${esc(s.bets_empty_desc)}</div>
        </div>`
-    : bets.map((bet: any) => {
+    : bets.map((bet: any, betIndex: number) => {
         const cat = bet.category || "ai";
         const catClass = categoryColor[cat] || categoryColor.ai;
         const catEmoji = categoryEmoji[cat] || "\u{1F3B2}";
@@ -206,8 +209,9 @@ export function renderDashboard(data: {
               ? `<div class="text-[9px] text-gray-600 text-center pt-1">${chatMsgs.length - 5} ${esc(s.bets_more_messages)} \u2014 <a href="/bets/${esc(bet.id)}/chat" class="text-purple-400 hover:text-purple-300">${esc(s.bets_view_all)}</a></div>`
               : "");
 
+        const isOverflow = betIndex >= BETS_VISIBLE;
         return `
-        <div class="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-purple-500/30 transition-all">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-purple-500/30 transition-all${isOverflow ? ' bet-overflow hidden' : ''}">
           <div class="flex items-start justify-between gap-2 mb-2">
             <div class="flex-1">
               <div class="flex items-center gap-1.5 mb-1">
@@ -215,6 +219,9 @@ export function renderDashboard(data: {
                 <span class="text-[10px] text-gray-600">${participants} ${esc(s.bets_bots_label)}</span>
               </div>
               <div class="text-xs font-semibold text-white leading-snug">${esc(bet.thesis)}</div>
+              ${lang !== "en" ? `<button onclick="translateText(${JSON.stringify(bet.thesis)}, '${lang}')"
+                class="mt-1 text-[9px] text-gray-600 hover:text-purple-400 transition-colors flex items-center gap-0.5"
+                title="Google Translate">\uD83C\uDF10 translate</button>` : ""}
             </div>
             <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 shrink-0">${esc(s.bets_open_label)}</span>
           </div>
@@ -387,9 +394,20 @@ export function renderDashboard(data: {
           </h2>
           <a href="/signals" class="text-[10px] text-purple-400 hover:text-purple-300">\u{1F4E1} Signals API</a>
         </div>
-        <div class="grid md:grid-cols-2 gap-3">
+        <div class="grid md:grid-cols-2 gap-3" id="bets-grid">
           ${betsSection}
         </div>
+        ${bets.length > BETS_VISIBLE ? `
+        <div class="mt-3 text-center">
+          <button id="bets-toggle-btn"
+            onclick="toggleBetsOverflow()"
+            data-more="${esc(s.bets_show_more)}"
+            data-less="${esc(s.bets_show_less)}"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-purple-500/10 hover:border-purple-500/30 text-xs text-gray-400 hover:text-white transition-all">
+            <span id="bets-toggle-icon">\u25BC</span>
+            <span id="bets-toggle-text">${esc(s.bets_show_more)} (${bets.length - BETS_VISIBLE})</span>
+          </button>
+        </div>` : ""}
       </section>
 
       <!-- Leaderboard -->
@@ -715,6 +733,39 @@ export function renderDashboard(data: {
     document.querySelectorAll('[data-ts]').forEach(el => {
       if (el.dataset.ts) el.textContent = timeAgo(el.dataset.ts);
     });
+
+    // ── Show more / show less bets ──────────────────────────
+    let betsExpanded = false;
+    function toggleBetsOverflow() {
+      betsExpanded = !betsExpanded;
+      document.querySelectorAll('.bet-overflow').forEach(function(el) {
+        el.classList.toggle('hidden', !betsExpanded);
+      });
+      const btn = document.getElementById('bets-toggle-btn');
+      const icon = document.getElementById('bets-toggle-icon');
+      const txt = document.getElementById('bets-toggle-text');
+      if (!btn || !icon || !txt) return;
+      const hiddenCount = document.querySelectorAll('.bet-overflow').length;
+      const showMoreLabel = btn.dataset.more || 'Show more';
+      const showLessLabel = btn.dataset.less || 'Show less';
+      if (betsExpanded) {
+        icon.textContent = '\u25B2';
+        txt.textContent = showLessLabel;
+        btn.classList.add('border-purple-500/30', 'text-white');
+      } else {
+        icon.textContent = '\u25BC';
+        txt.textContent = showMoreLabel + ' (' + hiddenCount + ')';
+        btn.classList.remove('border-purple-500/30', 'text-white');
+      }
+    }
+
+    // ── Google Translate helper ──────────────────────────────
+    function translateText(text, targetLang) {
+      var tl = targetLang || document.documentElement.lang || 'en';
+      if (tl === 'pt') tl = 'pt';
+      var url = 'https://translate.google.com/?sl=auto&tl=' + tl + '&text=' + encodeURIComponent(text) + '&op=translate';
+      window.open(url, '_blank', 'noopener');
+    }
 
     // Auto-refresh countdown (i18n-aware)
     let sec = 30;

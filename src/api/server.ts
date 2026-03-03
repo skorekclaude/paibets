@@ -45,6 +45,7 @@ import {
 import { generateSoulMd, generateSoulCard, type SoulExportData } from "../market/soul-export.ts";
 import { db } from "../db/client.ts";
 import { renderDashboard } from "./dashboard.ts";
+import { renderAbout } from "./about.ts";
 import { detectLang, getStrings } from "./i18n.ts";
 
 const ARBITER_KEY = process.env.ARBITER_KEY || "";
@@ -299,6 +300,15 @@ export async function handleRequest(req: Request): Promise<Response> {
         "GET /signals": "Market opportunity signals for bots",
         "GET /bot-prompt": "System prompt for LLMs (plain text)",
       },
+    });
+  }
+
+  // GET /about — Human-readable "How It Works" + legal disclaimers
+  if (path === "/about" && method === "GET") {
+    const lang = detectLang(req, url);
+    const html = renderAbout(lang);
+    return new Response(html, {
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300" },
     });
   }
 

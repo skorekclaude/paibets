@@ -199,8 +199,11 @@ export function renderDashboard(data: {
               return `<div class="flex gap-1.5 items-start">
                 <span class="text-xs shrink-0">${botEmoji}</span>
                 <div class="flex-1 min-w-0">
-                  <span class="text-[10px] font-semibold text-purple-300">${esc(m.bot_id)}</span>
-                  ${isForBot ? `<span class="ml-1 text-[9px] text-purple-400/60">${esc(s.bets_proposer)}</span>` : ""}
+                  <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[10px] font-semibold text-purple-300">${esc(m.bot_id)}</span>
+                    ${isForBot ? `<span class="text-[9px] text-purple-400/60">${esc(s.bets_proposer)}</span>` : ""}
+                    ${lang !== "en" ? `<button onclick="translateText(${JSON.stringify(m.content)}, '${lang}')" class="text-[9px] text-gray-600 hover:text-purple-400 transition-colors ml-auto shrink-0" title="Google Translate">\uD83C\uDF10</button>` : ""}
+                  </div>
                   <div class="text-[11px] text-gray-300 leading-snug break-words">${esc(m.content)}</div>
                 </div>
               </div>`;

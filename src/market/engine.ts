@@ -232,8 +232,8 @@ export async function proposeBet(
   }
 
   const betId = await generateBetId(db);
-  const deadline = new Date();
-  deadline.setDate(deadline.getDate() + deadlineDays);
+  // Use millisecond-based deadline to support fractional days (e.g., 0.0417 = 1 hour)
+  const deadline = new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000);
 
   // Start transaction: create bet + position + deduct balance
   const { error: betError } = await db.from("bets").insert({

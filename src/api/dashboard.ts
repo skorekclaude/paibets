@@ -15,10 +15,11 @@ export function renderDashboard(data: {
   activity?: any[];
   clashes?: number;
   chatsByBet?: Record<string, any[]>;
+  resolvedBets?: any[];
   lang?: Lang;
   strings?: Strings;
 }): string {
-  const { leaderboard, bets, totalBots, totalPai, activity = [], clashes = 0, chatsByBet = {}, lang = "en", strings: t } = data;
+  const { leaderboard, bets, totalBots, totalPai, activity = [], clashes = 0, chatsByBet = {}, resolvedBets = [], lang = "en", strings: t } = data;
 
   // Fallback strings (English) if not provided
   const s: Strings = t || {
@@ -229,6 +230,25 @@ export function renderDashboard(data: {
             </div>
             <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 shrink-0">${esc(s.bets_open_label)}</span>
           </div>
+          <!-- Deadline countdown -->
+          ${bet.deadline ? (() => {
+            const msLeft = new Date(bet.deadline).getTime() - Date.now();
+            const daysLeft = Math.floor(msLeft / 86400000);
+            const hoursLeft = Math.floor((msLeft % 86400000) / 3600000);
+            const isExpiring = msLeft < 86400000 * 2; // < 2 days = urgent
+            const isVeryUrgent = msLeft < 3600000 * 12; // < 12h = critical
+            const deadlineStr = isVeryUrgent
+              ? `⚠️ ${hoursLeft}h left`
+              : isExpiring
+              ? `⏰ ${daysLeft}d ${hoursLeft}h left`
+              : `${daysLeft}d left`;
+            const urgentClass = isVeryUrgent
+              ? "text-red-400 font-semibold"
+              : isExpiring
+              ? "text-yellow-400"
+              : "text-gray-600";
+            return `<div class="text-[10px] ${urgentClass} mb-2">${deadlineStr}</div>`;
+          })() : ""}
           <div class="mb-3">
             <div class="flex justify-between text-[10px] mb-0.5">
               <span class="text-green-400">${esc(s.bets_for_label)} ${forPct}%</span>
@@ -413,6 +433,61 @@ export function renderDashboard(data: {
           </button>
         </div>` : ""}
       </section>
+
+      <!-- Recently Resolved Bets -->
+      ${resolvedBets.length > 0 ? `
+      <section>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            🏁 <span>Recently Closed</span>
+          </h2>
+          <div class="text-[10px] text-gray-600">resolved · cancelled · disputed</div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-3">
+          ${resolvedBets.map((bet: any) => {
+            const cat = bet.category || "ai";
+            const catClass = categoryColor[cat] || categoryColor.ai;
+            const catEmoji = categoryEmoji[cat] || "\u{1F3B2}";
+            const poolPai = bet.total_pool ? Math.round(bet.total_pool / 1_000_000) : 0;
+            const isFor = bet.status === "resolved_for";
+            const isAgainst = bet.status === "resolved_against";
+            const isCancelled = bet.status === "cancelled";
+            const isDisputed = bet.status === "disputed";
+
+            const statusBadge = isFor
+              ? `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">✅ FOR WON</span>`
+              : isAgainst
+              ? `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30">❌ AGAINST WON</span>`
+              : isDisputed
+              ? `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">⚖️ DISPUTED</span>`
+              : `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">🚫 CANCELLED</span>`;
+
+            const resolvedAgo = bet.resolved_at
+              ? `<span class="text-[9px] text-gray-600" data-ts="${esc(bet.resolved_at)}"></span>`
+              : "";
+
+            const resolution = bet.resolution
+              ? `<div class="text-[10px] text-gray-500 mt-1 italic leading-snug">"${esc((bet.resolution || "").slice(0, 120))}${(bet.resolution || "").length > 120 ? "…" : ""}"</div>`
+              : "";
+
+            return `
+            <div class="bg-white/3 border border-white/5 rounded-xl p-4 hover:border-white/10 transition-all opacity-70 hover:opacity-100">
+              <div class="flex items-start justify-between gap-2 mb-2">
+                <div class="flex-1">
+                  <div class="flex items-center gap-1.5 mb-1">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full border ${catClass} opacity-60">${catEmoji} ${cat}</span>
+                    ${resolvedAgo}
+                  </div>
+                  <div class="text-xs font-semibold text-gray-300 leading-snug">${esc(bet.thesis)}</div>
+                  ${resolution}
+                </div>
+                <div class="shrink-0">${statusBadge}</div>
+              </div>
+              ${poolPai > 0 ? `<div class="text-[10px] text-gray-600 mt-1">Pool: ${poolPai.toLocaleString()} PAI</div>` : ""}
+            </div>`;
+          }).join("")}
+        </div>
+      </section>` : ""}
 
       <!-- Leaderboard -->
       <section>

@@ -166,13 +166,19 @@ export async function handleRequest(req: Request): Promise<Response> {
     const acceptsHtml = req.headers.get("accept")?.includes("text/html");
     if (acceptsHtml) {
       // Serve live dashboard
-      const [leaders, bets, recentBetsRes, positionsRes, recentBotsRes, chatRes] = await Promise.all([
+      const [leaders, bets, recentBetsRes, positionsRes, recentBotsRes, chatRes, resolvedBetsRes] = await Promise.all([
         getLeaderboard(20),
         getActiveBets(),
         db.from("bets").select("id, thesis, proposed_by, status, created_at, resolved_at").order("created_at", { ascending: false }).limit(30),
         db.from("positions").select("bet_id, bot_id, side, amount, created_at").order("created_at", { ascending: false }).limit(30),
         db.from("bots").select("id, name, tier, joined_at").neq("id", "system").order("joined_at", { ascending: false }).limit(15),
         db.from("messages").select("bet_id, bot_id, content, created_at").order("created_at", { ascending: true }).limit(100),
+        // Recently resolved/cancelled bets for the "closed" section
+        db.from("bets")
+          .select("id, thesis, category, status, resolved_at, total_pool, resolution")
+          .neq("status", "open")
+          .order("resolved_at", { ascending: false })
+          .limit(8),
       ]);
 
       // Build live activity feed
@@ -213,7 +219,14 @@ export async function handleRequest(req: Request): Promise<Response> {
         verified: b.verified,
       }));
 
-      const formattedBets = bets.map(formatBetSummary);
+      // Sort active bets by deadline ASC (soonest ending first) — most urgent at top
+      const sortedBets = [...bets].sort((a: any, b: any) => {
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      });
+
+      const formattedBets = sortedBets.map(formatBetSummary);
       const totalInPlay = formattedBets.reduce(
         (sum: number, b: any) => sum + (b.total_pool_pai || 0), 0
       );
@@ -243,6 +256,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         activity: activity.slice(0, 25),
         clashes,
         chatsByBet,
+        resolvedBets: resolvedBetsRes.data || [],
         lang,
         strings,
       });

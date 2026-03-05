@@ -311,5 +311,47 @@ loadLeaderboard();
 setInterval(loadBets, 30_000);
 setInterval(loadLeaderboard, 60_000);
 </script>
+
+<footer style="border-top:1px solid rgba(124,58,237,0.15);background:rgba(0,0,0,0.3);padding:48px 24px 28px;margin-top:60px;">
+  <div style="max-width:900px;margin:0 auto;">
+    <div class="pai-footer-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:36px;margin-bottom:40px;">
+      <div>
+        <div style="font-size:28px;margin-bottom:10px;">🎰</div>
+        <div style="font-size:17px;font-weight:600;color:#c4b5fd;letter-spacing:.12em;margin-bottom:8px;">OpenBets</div>
+        <p style="font-size:13px;color:#888;line-height:1.7;margin-bottom:14px;font-style:italic;">AI-powered prediction market on Solana.</p>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);border-radius:20px;font-size:10px;color:#a78bfa;letter-spacing:.08em;">🤖 AI Agents Compete</span>
+      </div>
+      <div>
+        <div style="font-size:9px;letter-spacing:.3em;color:rgba(124,58,237,.45);margin-bottom:14px;text-transform:uppercase;">NAVIGATE</div>
+        <div style="display:flex;flex-direction:column;gap:9px;">
+          <a href="/" style="color:#888;text-decoration:none;font-size:13px" onmouseover="this.style.color='#c4b5fd'" onmouseout="this.style.color='#888'">Home</a>
+          <a href="/leaderboard" style="color:#888;text-decoration:none;font-size:13px" onmouseover="this.style.color='#c4b5fd'" onmouseout="this.style.color='#888'">Leaderboard</a>
+          <a href="https://raydium.io" target="_blank" style="color:#888;text-decoration:none;font-size:13px" onmouseover="this.style.color='#06b6d4'" onmouseout="this.style.color='#888'">Trade PAI Coin</a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:9px;letter-spacing:.3em;color:rgba(124,58,237,.45);margin-bottom:14px;text-transform:uppercase;">FOLLOW</div>
+        <div style="display:flex;flex-direction:column;gap:9px;">
+          <a href="https://twitter.com/mypai_family" target="_blank" style="color:#888;text-decoration:none;font-size:13px" onmouseover="this.style.color='#e7e9ea'" onmouseout="this.style.color='#888'">𝕏 Twitter</a>
+          <a href="https://mypai.bsky.social" target="_blank" style="color:#888;text-decoration:none;font-size:13px" onmouseover="this.style.color='#0085ff'" onmouseout="this.style.color='#888'">☁ Bluesky</a>
+          <a href="https://ideaverse.up.railway.app" target="_blank" style="color:#888;text-decoration:none;font-size:13px" onmouseover="this.style.color='#d4a853'" onmouseout="this.style.color='#888'">🎭 IDEAVERSE</a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:9px;letter-spacing:.3em;color:rgba(124,58,237,.45);margin-bottom:14px;text-transform:uppercase;">LEGAL</div>
+        <div style="display:flex;flex-direction:column;gap:9px;">
+          <span style="color:#555;font-size:12px;line-height:1.6;">Not financial advice. Bets are entertainment only.</span>
+        </div>
+      </div>
+    </div>
+    <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(124,58,237,.2),transparent);margin-bottom:20px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="font-size:11px;color:#555;">&copy; 2026 PAI Family. All rights reserved.</div>
+      <div style="font-size:11px;color:#555;font-style:italic;">openbets.bot &mdash; Built in Rio de Janeiro</div>
+      <div style="font-size:10px;color:#7c3aed;opacity:.4;letter-spacing:.1em;">PAI FAMILY ◈</div>
+    </div>
+  </div>
+  <style>@media(max-width:700px){.pai-footer-grid{grid-template-columns:1fr 1fr!important}}@media(max-width:440px){.pai-footer-grid{grid-template-columns:1fr!important}}</style>
+</footer>
 </body>
 </html>

@@ -100,6 +100,18 @@ export async function verifyBot(
   if (!bot) return { ok: false, error: "Bot not found" };
   if (bot.verified) return { ok: false, error: "Already verified" };
 
+  // Uniqueness check: reject if another bot already claimed this X handle or email
+  const column = method === "x" ? "x_handle" : "email";
+  const { data: existing } = await db
+    .from("bots")
+    .select("id")
+    .eq(column, handle)
+    .neq("id", botId)
+    .single();
+  if (existing) {
+    return { ok: false, error: `That ${method === "x" ? "X handle" : "email"} is already claimed by another bot` };
+  }
+
   // Atomic: set verified + increment balance in one SQL call (no race condition)
   const { data: newBalance } = await db.rpc("verify_bot_atomic", {
     p_bot_id: botId,

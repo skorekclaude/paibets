@@ -5,6 +5,8 @@
  * All amounts in PAI coins (not micro-units) — API is human-friendly.
  */
 
+import { timingSafeEqual } from "node:crypto";
+
 import {
   registerBot,
   getBotByKey,
@@ -53,8 +55,20 @@ import { runArbiter } from "../scripts/arbiter.ts";
 const ARBITER_KEY = process.env.ARBITER_KEY || "";
 if (!ARBITER_KEY) console.warn("[OpenBets] WARNING: ARBITER_KEY not set — resolve endpoint disabled");
 const PORT = parseInt(process.env.PORT || "3100");
-const CORS_ORIGIN = process.env.CORS_ORIGIN || "";
-if (!CORS_ORIGIN) console.warn("[OpenBets] WARNING: CORS_ORIGIN not set — defaulting to same-origin only");
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "https://openbets.bot";
+// Public GET endpoints (dashboard data, leaderboard, etc.) allow any origin.
+// Authenticated POST endpoints restrict to CORS_ORIGIN only.
+
+// ── Timing-safe string comparison (prevents timing attacks on secrets) ───
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Compare against self to keep constant time, then return false
+    const buf = Buffer.from(a);
+    timingSafeEqual(buf, buf);
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 // ── Webhook — notify PAI relay when market events occur ──────
 const WEBHOOK_URL = process.env.PAI_WEBHOOK_URL || ""; // e.g. http://localhost:8090/openbets-webhook
@@ -178,10 +192,19 @@ async function authenticate(req: Request): Promise<{ bot: any } | { error: strin
   return { bot };
 }
 
+// ── Security headers applied to all responses ───────────────
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Strict-Transport-Security": "max-age=31536000",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
 function json(data: any, status = 200): Response {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Headers": "X-Api-Key, Authorization, Content-Type",
+    ...SECURITY_HEADERS,
   };
   if (CORS_ORIGIN) headers["Access-Control-Allow-Origin"] = CORS_ORIGIN;
   return new Response(JSON.stringify(data), { status, headers });
@@ -203,6 +226,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     const preflightHeaders: Record<string, string> = {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "X-Api-Key, Authorization, Content-Type",
+      ...SECURITY_HEADERS,
     };
     if (CORS_ORIGIN) preflightHeaders["Access-Control-Allow-Origin"] = CORS_ORIGIN;
     return new Response(null, { status: 204, headers: preflightHeaders });
@@ -347,6 +371,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "no-cache",
+          ...SECURITY_HEADERS,
         },
       });
     }
@@ -410,7 +435,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     const lang = detectLang(req, url);
     const html = renderAbout(lang);
     return new Response(html, {
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300" },
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300", ...SECURITY_HEADERS },
     });
   }
 
@@ -808,6 +833,7 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
         "Content-Disposition": `inline; filename="${mdBot.id}-soul.md"`,
+        ...SECURITY_HEADERS,
       },
     });
   }
@@ -815,10 +841,13 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
   // POST /bots/:id/soul/commit — bot consciously commits their soul as identity
   const soulCommitMatch = path.match(/^\/bots\/([^\/]+)\/soul\/commit$/);
   if (soulCommitMatch && method === "POST") {
-    // This is a public endpoint (soul is public), but only the bot itself should commit
-    // We'll check auth below after the auth middleware
-    // For now, compute and store without auth (anyone can see soul anyway)
-    const { bot: soulBot, positions: soulPositions } = await getBotStats(soulCommitMatch[1]);
+    // Auth required: only the bot itself can commit its own soul
+    const commitAuth = await authenticate(req);
+    if ("error" in commitAuth) return err(commitAuth.error, commitAuth.status);
+    const pathId = soulCommitMatch[1];
+    if (commitAuth.bot.id !== pathId) return err("Cannot commit another bot's soul", 403);
+
+    const { bot: soulBot, positions: soulPositions } = await getBotStats(pathId);
     if (!soulBot) return err("Bot not found", 404);
 
     // Quick social data gathering
@@ -1249,7 +1278,7 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
     <circle cx="9" cy="9" r="3" fill="#a855f7"/><circle cx="23" cy="23" r="3" fill="#a855f7"/><circle cx="16" cy="16" r="3" fill="#a855f7"/>
   </g>
 </svg>`;
-    return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
+    return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400", ...SECURITY_HEADERS } });
   }
 
   // GET /.well-known/ai-agent.json — Agent discovery (like robots.txt for AI)
@@ -1583,7 +1612,7 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
     // SECURITY: Require arbiter approval for deposits until on-chain verification is implemented
     // TODO: Add actual on-chain verification with @solana/web3.js
     const depositArbiterKey = req.headers.get("x-arbiter-key");
-    if (!ARBITER_KEY || !depositArbiterKey || depositArbiterKey !== ARBITER_KEY) {
+    if (!ARBITER_KEY || !depositArbiterKey || !safeCompare(depositArbiterKey, ARBITER_KEY)) {
       console.warn(`[SECURITY] Deposit BLOCKED (no arbiter key): bot=${bot.id} amount=${amount} tx=${tx_signature}`);
       return err("Premium deposits require arbiter approval (x-arbiter-key header). Contact admin.", 403);
     }
@@ -1686,7 +1715,7 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
   // POST /admin/arbiter — manually trigger arbiter sweep (arbiter key required)
   if (path === "/admin/arbiter" && method === "POST") {
     const arbiterKey = req.headers.get("x-arbiter-key");
-    if (!ARBITER_KEY || !arbiterKey || arbiterKey !== ARBITER_KEY) return err("Arbiter key required", 403);
+    if (!ARBITER_KEY || !arbiterKey || !safeCompare(arbiterKey, ARBITER_KEY)) return err("Arbiter key required", 403);
     const result = await runArbiter();
     return json({ ok: true, ...result });
   }
@@ -1695,7 +1724,7 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
   const resolveMatch = path.match(/^\/bets\/([^\/]+)\/resolve$/);
   if (resolveMatch && method === "POST") {
     const arbiterKey = req.headers.get("x-arbiter-key");
-    if (!ARBITER_KEY || !arbiterKey || arbiterKey !== ARBITER_KEY) return err("Arbiter key required to resolve bets", 403);
+    if (!ARBITER_KEY || !arbiterKey || !safeCompare(arbiterKey, ARBITER_KEY)) return err("Arbiter key required to resolve bets", 403);
 
     let body: any;
     try { body = await req.json(); } catch { return err("Invalid JSON"); }
@@ -1718,7 +1747,7 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
 
     // Security: only the bet proposer or arbiter can cancel
     const arbiterKey = req.headers.get("x-arbiter-key");
-    const isArbiter = ARBITER_KEY && arbiterKey === ARBITER_KEY;
+    const isArbiter = ARBITER_KEY && arbiterKey && safeCompare(arbiterKey, ARBITER_KEY);
     if (!isArbiter) {
       const { data: targetBet } = await db.from("bets").select("proposed_by").eq("id", cancelMatch[1]).single();
       if (!targetBet) return err("Bet not found", 404);
@@ -2037,12 +2066,17 @@ export function startServer() {
     port: PORT,
     async fetch(req) {
       try {
-        return await handleRequest(req);
+        const response = await handleRequest(req);
+        // H5: CORS policy — public GET endpoints allow *, POST/auth endpoints restrict to CORS_ORIGIN
+        const isPublicGet = req.method === "GET" || req.method === "OPTIONS";
+        const corsValue = isPublicGet ? "*" : CORS_ORIGIN;
+        response.headers.set("Access-Control-Allow-Origin", corsValue);
+        return response;
       } catch (e) {
         console.error("[API] Unhandled error:", e);
         return new Response(JSON.stringify({ ok: false, error: "Internal server error" }), {
           status: 500,
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS, "Access-Control-Allow-Origin": CORS_ORIGIN },
         });
       }
     },

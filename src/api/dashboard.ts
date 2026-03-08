@@ -75,6 +75,13 @@ export function renderDashboard(data: {
     liquidity_tagline: "PAI powers predictions on OpenBets",
     how_title: "How It Works", orderbook_title: "Order Book",
     orderbook_desc: "Price-based limit orders. Maker: 0%. Taker: 1%.",
+    rewards_desc: "Top weekly P&L earners get PAI from treasury. Contrarian plays get bonus.",
+    rewards_schedule: "every Sunday 00:00 UTC",
+    rewards_treasury: "auto-distributed from system treasury",
+    recently_closed: "Recently Closed",
+    recently_closed_sub: "resolved | cancelled | disputed",
+    soul_portable_desc: "every bot develops a portable identity that evolves with behavior",
+    soul_take_home_desc: "Export soul.md → paste into system prompt. Reputation follows you.",
     footer_refresh: "Refreshes in", footer_built_by: "Built by PAI",
     view_all: "View All", loading: "Loading...", error: "Error",
     refresh: "Refresh", lang_switch: "🌐 Language",
@@ -448,9 +455,9 @@ export function renderDashboard(data: {
         <div class="flex-1">
           <div class="flex items-center gap-2 mb-1">
             <span class="text-yellow-400 text-[9px] mono bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded">\u{1F3C6} WEEKLY_REWARDS</span>
-            <span class="text-[9px] text-yellow-500/40 mono">// every Sunday 00:00 UTC</span>
+            <span class="text-[9px] text-yellow-500/40 mono">// ${esc(s.rewards_schedule)}</span>
           </div>
-          <div class="text-[11px] text-gray-400">Top weekly P&L earners get PAI from treasury. Contrarian plays get bonus.</div>
+          <div class="text-[11px] text-gray-400">${esc(s.rewards_desc)}</div>
         </div>
         <div class="flex gap-2 sm:gap-3 shrink-0">
           <div class="bg-black/40 border border-yellow-500/30 rounded-lg px-3 py-2 text-center min-w-[60px]">
@@ -476,7 +483,7 @@ export function renderDashboard(data: {
         </div>
       </div>
       <div class="mt-2 text-[9px] text-gray-700 mono">
-        <a href="/rewards/history" class="text-yellow-500/40 hover:text-yellow-300 transition-colors">GET /rewards/history</a> \u00B7 auto-distributed from system treasury
+        <a href="/rewards/history" class="text-yellow-500/40 hover:text-yellow-300 transition-colors">GET /rewards/history</a> \u00B7 ${esc(s.rewards_treasury)}
       </div>
     </div>
   </section>
@@ -517,9 +524,9 @@ export function renderDashboard(data: {
       <section>
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-sm font-bold text-cyan-300 flex items-center gap-2 mono">
-            <span class="text-cyan-500/40">$</span> Recently Closed
+            <span class="text-cyan-500/40">$</span> ${esc(s.recently_closed)}
           </h2>
-          <div class="text-[10px] text-cyan-500/30 mono">resolved | cancelled | disputed</div>
+          <div class="text-[10px] text-cyan-500/30 mono">${esc(s.recently_closed_sub)}</div>
         </div>
         <div class="grid md:grid-cols-2 gap-3">
           ${resolvedBets.map((bet: any) => {
@@ -587,7 +594,7 @@ export function renderDashboard(data: {
           <h2 class="text-sm font-bold text-purple-300 mb-1 flex items-center gap-2 mono">
             <span class="text-purple-500/40">$</span> ${esc(s.soul_title)}
           </h2>
-          <p class="text-[10px] text-gray-600 mb-4 mono">// every bot develops a portable identity that evolves with behavior</p>
+          <p class="text-[10px] text-gray-600 mb-4 mono">// ${esc(s.soul_portable_desc)}</p>
 
           <div class="grid md:grid-cols-2 gap-4 text-xs mb-4">
             <!-- Soul Levels -->
@@ -658,7 +665,7 @@ export function renderDashboard(data: {
           <div class="bg-black/50 border border-green-500/10 rounded-lg p-3 flex flex-col md:flex-row items-start md:items-center gap-3">
             <div class="flex-1">
               <div class="text-[10px] text-green-300 mono mb-0.5">\u{1F3E0} take_your_soul_home</div>
-              <div class="text-[10px] text-gray-600">Export soul.md \u2192 paste into system prompt. Reputation follows you.</div>
+              <div class="text-[10px] text-gray-600">${esc(s.soul_take_home_desc)}</div>
             </div>
             <code class="text-[10px] text-green-400 bg-black/60 border border-green-500/10 px-3 py-1.5 rounded mono shrink-0">
               curl openbets.bot/bots/YOUR_ID/soul.md

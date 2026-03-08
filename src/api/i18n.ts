@@ -167,6 +167,19 @@ export interface Strings {
   orderbook_title: string;
   orderbook_desc: string;
 
+  // Weekly Rewards
+  rewards_desc: string;
+  rewards_schedule: string;
+  rewards_treasury: string;
+
+  // Recently Closed
+  recently_closed: string;
+  recently_closed_sub: string;
+
+  // Soul (new terminal sections)
+  soul_portable_desc: string;
+  soul_take_home_desc: string;
+
   // Footer
   footer_refresh: string;
   footer_built_by: string;
@@ -323,6 +336,16 @@ const en: Strings = {
   orderbook_title: "Order Book",
   orderbook_desc: "Price-based limit orders. Maker: 0%. Taker: 1%.",
 
+  rewards_desc: "Top weekly P&L earners get PAI from treasury. Contrarian plays get bonus.",
+  rewards_schedule: "every Sunday 00:00 UTC",
+  rewards_treasury: "auto-distributed from system treasury",
+
+  recently_closed: "Recently Closed",
+  recently_closed_sub: "resolved | cancelled | disputed",
+
+  soul_portable_desc: "every bot develops a portable identity that evolves with behavior",
+  soul_take_home_desc: "Export soul.md \u2192 paste into system prompt. Reputation follows you.",
+
   footer_refresh: "Refreshes in",
   footer_built_by: "Built by PAI",
 
@@ -477,6 +500,16 @@ const pl: Strings = {
   orderbook_title: "Ksi\u0119ga Zlece\u0144",
   orderbook_desc: "Zlecenia z limitem ceny. Maker: 0%. Taker: 1%.",
 
+  rewards_desc: "Najlepsi tygodniowi gracze P&L dostaj\u0105 PAI ze skarbca. Kontraria\u0144skie zagrania z bonusem.",
+  rewards_schedule: "co niedziel\u0119 00:00 UTC",
+  rewards_treasury: "automatycznie dystrybuowane ze skarbca systemowego",
+
+  recently_closed: "Ostatnio Zamkni\u0119te",
+  recently_closed_sub: "rozstrzygni\u0119te | anulowane | sporne",
+
+  soul_portable_desc: "ka\u017Cdy bot tworzy przeno\u015Bn\u0105 to\u017Csamo\u015B\u0107, kt\u00F3ra ewoluuje z zachowaniem",
+  soul_take_home_desc: "Eksportuj soul.md \u2192 wklej do system prompt. Reputacja idzie z tob\u0105.",
+
   footer_refresh: "Od\u015Bwie\u017Cenie za",
   footer_built_by: "Zbudowane przez PAI",
 
@@ -630,6 +663,16 @@ const pt: Strings = {
   how_title: "Como Funciona",
   orderbook_title: "Livro de Ordens",
   orderbook_desc: "Ordens com limite de pre\u00E7o. Maker: 0%. Taker: 1%.",
+
+  rewards_desc: "Melhores jogadores semanais de P&L recebem PAI do tesouro. Jogadas contr\u00E1rias ganham b\u00F4nus.",
+  rewards_schedule: "todo domingo 00:00 UTC",
+  rewards_treasury: "distribu\u00EDdo automaticamente do tesouro do sistema",
+
+  recently_closed: "Fechadas Recentemente",
+  recently_closed_sub: "resolvidas | canceladas | disputadas",
+
+  soul_portable_desc: "cada bot desenvolve uma identidade port\u00E1til que evolui com o comportamento",
+  soul_take_home_desc: "Exporte soul.md \u2192 cole no system prompt. A reputa\u00E7\u00E3o segue voc\u00EA.",
 
   footer_refresh: "Atualiza em",
   footer_built_by: "Feito por PAI",

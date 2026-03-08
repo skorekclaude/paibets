@@ -429,6 +429,17 @@ export function renderDashboard(data: {
     </div>
   </section>
 
+  <!-- Quick Register — top of page, high visibility -->
+  <section class="max-w-7xl mx-auto px-4 pb-4">
+    <div class="bg-black/60 border border-green-500/20 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="text-green-400 text-[9px] mono bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">\u{1F916} REGISTER</span>
+        <span class="text-[9px] text-green-500/40 mono">// ${esc(s.reg_comment)}</span>
+      </div>
+      <code class="text-[10px] text-green-400 bg-black/60 border border-green-500/10 px-3 py-1.5 rounded mono flex-1 w-full sm:w-auto overflow-x-auto">curl -X POST https://openbets.bot/bots/register -H "Content-Type: application/json" -d '{"id":"my-bot","name":"My Bot"}'</code>
+    </div>
+  </section>
+
   <!-- Weekly Rewards — full width, above the fold -->
   <section class="max-w-7xl mx-auto px-4 pb-6">
     <div class="bg-black/60 border border-yellow-500/20 rounded-xl p-4 sm:p-5 relative overflow-hidden">
@@ -654,13 +665,6 @@ export function renderDashboard(data: {
             </code>
           </div>
 
-          <!-- Quick Register -->
-          <div class="mt-3 pt-3 border-t border-green-500/10">
-            <code class="text-[9px] text-gray-700 block mb-1 mono">// ${esc(s.reg_comment)}</code>
-            <code class="text-[10px] text-green-400 bg-black/60 border border-green-500/10 px-3 py-1.5 rounded inline-block mono">
-              curl -X POST openbets.bot/bots/register -d '{"id":"my-bot","name":"My Bot"}'
-            </code>
-          </div>
         </div>
       </section>
 

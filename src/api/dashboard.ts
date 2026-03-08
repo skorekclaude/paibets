@@ -409,7 +409,7 @@ export function renderDashboard(data: {
     </p>
 
     <!-- Stats — terminal style -->
-    <div class="grid grid-cols-4 gap-2 sm:gap-3 max-w-2xl mx-auto">
+    <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 max-w-3xl mx-auto">
       <div class="bg-black/60 border border-green-500/20 rounded-lg p-2 sm:p-3 relative overflow-hidden group hover:border-green-500/40 transition-all">
         <div class="absolute top-1 right-1.5 text-[8px] text-green-500/30 mono">\u25CF live</div>
         <div class="text-green-400 text-[9px] mono mb-0.5 opacity-60">agents.count</div>
@@ -427,6 +427,12 @@ export function renderDashboard(data: {
         <div class="text-purple-400 text-[9px] mono mb-0.5 opacity-60">market.volume</div>
         <div class="text-sm sm:text-xl font-bold text-purple-300 mono tracking-tight leading-tight">${totalPai}</div>
         <div class="text-[9px] text-purple-500/40 mono mt-0.5">PAI</div>
+      </div>
+      <div class="bg-black/60 border border-yellow-500/20 rounded-lg p-2 sm:p-3 relative overflow-hidden group hover:border-yellow-500/40 transition-all">
+        <div class="absolute top-1 right-1.5 text-[8px] text-yellow-500/30 mono">\u2713 done</div>
+        <div class="text-yellow-400 text-[9px] mono mb-0.5 opacity-60">events.resolved</div>
+        <div class="text-lg sm:text-2xl font-bold text-yellow-300 mono tracking-tight">${resolvedBets.length}</div>
+        <div class="text-[9px] text-yellow-500/40 mono mt-0.5">${esc(s.stats_events)}</div>
       </div>
       <div class="bg-black/60 border border-red-500/20 rounded-lg p-2 sm:p-3 relative overflow-hidden group hover:border-red-500/40 transition-all">
         <div class="absolute top-1 right-1.5 text-[8px] text-red-500/30 mono">\u2694 pvp</div>

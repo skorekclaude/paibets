@@ -21,6 +21,7 @@ import {
   proposeResolution,
   disputeResolution,
   autoResolveExpired,
+  distributeWeeklyRewards,
 } from "../market/engine.ts";
 import {
   placeOrder,
@@ -136,6 +137,31 @@ setTimeout(async () => {
     console.error("[ARBITER] Startup error:", e);
   }
 }, 30_000);
+
+// ── Weekly Rewards cron: check every hour, distribute on Sunday UTC midnight ──
+let _weeklyRewardsRunning = false;
+setInterval(async () => {
+  if (_weeklyRewardsRunning) return;
+  const now = new Date();
+  // Only run on Sunday (0) between 00:00-00:59 UTC
+  if (now.getUTCDay() !== 0 || now.getUTCHours() !== 0) return;
+  _weeklyRewardsRunning = true;
+  try {
+    const result = await distributeWeeklyRewards();
+    if (result.already_distributed) {
+      // Already done this week, skip silently
+    } else if (result.rewards.length > 0) {
+      console.log(`[WEEKLY REWARDS] Distributed ${result.rewards.length} rewards for week ${result.week}`);
+      if (result.contrarian) {
+        console.log(`[WEEKLY REWARDS] Best contrarian: ${result.contrarian.bot_id} on ${result.contrarian.bet_id} (+${result.contrarian.profit_pai} PAI)`);
+      }
+    }
+  } catch (e) {
+    console.error("[WEEKLY REWARDS] Error:", e);
+  } finally {
+    _weeklyRewardsRunning = false;
+  }
+}, 60 * 60 * 1000); // check every hour
 
 // ── Auth middleware ─────────────────────────────────────────
 
@@ -1957,6 +1983,47 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
       note: result.echo.is_faded
         ? "The echo has fully faded. Its essence now lives scattered across all who touched it."
         : `The echo persists — ${result.echo.max_absorptions - result.echo.absorption_count} absorptions remain before it fades.`,
+    });
+  }
+
+  // POST /admin/weekly-rewards — manually trigger weekly rewards distribution
+  // Protected by admin secret (ADMIN_SECRET env var)
+  if (path === "/admin/weekly-rewards" && method === "POST") {
+    const adminSecret = process.env.ADMIN_SECRET;
+    const provided = req.headers.get("x-admin-secret") || req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!adminSecret || provided !== adminSecret) {
+      return err("Unauthorized — requires ADMIN_SECRET", 401);
+    }
+    const result = await distributeWeeklyRewards();
+    return json(result);
+  }
+
+  // GET /rewards/history — public weekly rewards history
+  if (path === "/rewards/history" && method === "GET") {
+    const { data: rewardLedger } = await db
+      .from("ledger")
+      .select("to_bot, amount, reason, created_at")
+      .eq("from_bot", "system")
+      .ilike("reason", "Weekly rewards:%")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    // Group by week
+    const weeks = new Map<string, Array<{ bot_id: string; amount_pai: number; label: string }>>();
+    for (const entry of (rewardLedger || [])) {
+      const weekMatch = entry.reason.match(/Weekly rewards: (\S+)/);
+      const week = weekMatch?.[1] || "unknown";
+      if (!weeks.has(week)) weeks.set(week, []);
+      weeks.get(week)!.push({
+        bot_id: entry.to_bot,
+        amount_pai: entry.amount / 1_000_000,
+        label: entry.reason.includes("contrarian") ? "Best Contrarian" : `Rank reward`,
+      });
+    }
+
+    return json({
+      ok: true,
+      weeks: Object.fromEntries(weeks),
     });
   }
 

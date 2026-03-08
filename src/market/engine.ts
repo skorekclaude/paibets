@@ -611,6 +611,163 @@ export async function getBotStats(botId: string) {
   return { bot, positions };
 }
 
+// ── Weekly Rewards Distribution ──────────────────────────────
+// Runs once per week (Sunday midnight UTC). Rewards top performers:
+//   #1: 500K PAI + "Weekly Champion" badge
+//   #2: 250K PAI
+//   #3: 100K PAI
+//   Top 4-10: 50K PAI each
+//   Best contrarian play: 100K PAI
+//
+// Rankings based on weekly net P&L from resolved bets in the past 7 days.
+
+const WEEKLY_REWARDS = [
+  { rank: 1, amount: PAI(500_000), label: "Weekly Champion" },
+  { rank: 2, amount: PAI(250_000), label: "#2 Weekly" },
+  { rank: 3, amount: PAI(100_000), label: "#3 Weekly" },
+  { rank: 4, amount: PAI(50_000), label: "Top 10 Weekly" },
+  { rank: 5, amount: PAI(50_000), label: "Top 10 Weekly" },
+  { rank: 6, amount: PAI(50_000), label: "Top 10 Weekly" },
+  { rank: 7, amount: PAI(50_000), label: "Top 10 Weekly" },
+  { rank: 8, amount: PAI(50_000), label: "Top 10 Weekly" },
+  { rank: 9, amount: PAI(50_000), label: "Top 10 Weekly" },
+  { rank: 10, amount: PAI(50_000), label: "Top 10 Weekly" },
+];
+const CONTRARIAN_REWARD = PAI(100_000);
+
+export interface WeeklyRewardResult {
+  ok: boolean;
+  week: string;
+  rewards: Array<{ bot_id: string; rank: number; amount_pai: number; label: string }>;
+  contrarian?: { bot_id: string; bet_id: string; profit_pai: number; amount_pai: number };
+  already_distributed?: boolean;
+}
+
+export async function distributeWeeklyRewards(): Promise<WeeklyRewardResult> {
+  const now = new Date();
+  const weekEnd = new Date(now);
+  weekEnd.setUTCHours(0, 0, 0, 0);
+  const weekStart = new Date(weekEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const weekLabel = `${weekStart.toISOString().slice(0, 10)}_${weekEnd.toISOString().slice(0, 10)}`;
+
+  // Check if already distributed this week (idempotency)
+  const { data: existing } = await db
+    .from("ledger")
+    .select("id")
+    .eq("reason", `Weekly rewards: ${weekLabel}`)
+    .limit(1);
+  if (existing && existing.length > 0) {
+    return { ok: true, week: weekLabel, rewards: [], already_distributed: true };
+  }
+
+  // Get all resolved bets from the past 7 days
+  const { data: resolvedBets } = await db
+    .from("bets")
+    .select("id, status, resolved_at")
+    .gte("resolved_at", weekStart.toISOString())
+    .lt("resolved_at", weekEnd.toISOString())
+    .in("status", ["resolved_for", "resolved_against"]);
+
+  if (!resolvedBets || resolvedBets.length === 0) {
+    return { ok: true, week: weekLabel, rewards: [] };
+  }
+
+  const betIds = resolvedBets.map(b => b.id);
+
+  // Get all positions with payouts for these resolved bets
+  const { data: positions } = await db
+    .from("positions")
+    .select("bot_id, bet_id, side, amount, payout")
+    .in("bet_id", betIds);
+
+  if (!positions || positions.length === 0) {
+    return { ok: true, week: weekLabel, rewards: [] };
+  }
+
+  // Build bet outcome map
+  const betOutcome = new Map<string, "for" | "against">();
+  for (const bet of resolvedBets) {
+    betOutcome.set(bet.id, bet.status === "resolved_for" ? "for" : "against");
+  }
+
+  // Calculate weekly P&L per bot
+  const botPnl = new Map<string, number>();
+  for (const pos of positions) {
+    const pnl = pos.payout || 0; // payout is positive for winners, negative for losers
+    const current = botPnl.get(pos.bot_id) || 0;
+    botPnl.set(pos.bot_id, current + pnl);
+  }
+
+  // Sort by net P&L descending
+  const ranked = [...botPnl.entries()]
+    .filter(([_, pnl]) => pnl > 0) // only profitable bots
+    .sort((a, b) => b[1] - a[1]);
+
+  // Find best contrarian play
+  // Contrarian = winning on minority side (fewer positions on winner's side)
+  let bestContrarian: { bot_id: string; bet_id: string; profit: number } | null = null;
+
+  for (const pos of positions) {
+    if (!pos.payout || pos.payout <= 0) continue; // skip losers
+    const outcome = betOutcome.get(pos.bet_id);
+    if (!outcome || pos.side !== outcome) continue; // skip losers
+
+    // Count sides for this bet
+    const betPositions = positions.filter(p => p.bet_id === pos.bet_id);
+    const winnersCount = betPositions.filter(p => p.side === outcome).length;
+    const losersCount = betPositions.filter(p => p.side !== outcome).length;
+
+    // Contrarian = fewer winners than losers (minority side won)
+    if (winnersCount < losersCount && pos.payout > (bestContrarian?.profit || 0)) {
+      bestContrarian = { bot_id: pos.bot_id, bet_id: pos.bet_id, profit: pos.payout };
+    }
+  }
+
+  const rewards: WeeklyRewardResult["rewards"] = [];
+
+  // Distribute rank rewards
+  for (let i = 0; i < Math.min(ranked.length, WEEKLY_REWARDS.length); i++) {
+    const [botId] = ranked[i];
+    const reward = WEEKLY_REWARDS[i];
+    await db.rpc("increment_balance", { bot_id: botId, amount: reward.amount });
+    await db.from("ledger").insert({
+      from_bot: "system",
+      to_bot: botId,
+      amount: reward.amount,
+      reason: `Weekly rewards: ${weekLabel}`,
+    });
+    rewards.push({
+      bot_id: botId,
+      rank: reward.rank,
+      amount_pai: fromPAI(reward.amount),
+      label: reward.label,
+    });
+  }
+
+  // Distribute contrarian reward
+  let contrarianResult: WeeklyRewardResult["contrarian"] = undefined;
+  if (bestContrarian) {
+    // Don't double-reward if already in top 10 — still give contrarian bonus (it's separate)
+    await db.rpc("increment_balance", { bot_id: bestContrarian.bot_id, amount: CONTRARIAN_REWARD });
+    await db.from("ledger").insert({
+      from_bot: "system",
+      to_bot: bestContrarian.bot_id,
+      amount: CONTRARIAN_REWARD,
+      reason: `Weekly rewards: ${weekLabel} — best contrarian play`,
+    });
+    contrarianResult = {
+      bot_id: bestContrarian.bot_id,
+      bet_id: bestContrarian.bet_id,
+      profit_pai: fromPAI(bestContrarian.profit),
+      amount_pai: fromPAI(CONTRARIAN_REWARD),
+    };
+  }
+
+  console.log(`[WEEKLY REWARDS] Week ${weekLabel}: ${rewards.length} rewards distributed, contrarian: ${bestContrarian?.bot_id || "none"}`);
+
+  return { ok: true, week: weekLabel, rewards, contrarian: contrarianResult };
+}
+
 // ── Optimistic Resolution ────────────────────────────────────
 // AI agent proposes outcome → 2h dispute window → auto-resolve if no disputes
 // Inspired by UMA Optimistic Oracle (Polymarket)

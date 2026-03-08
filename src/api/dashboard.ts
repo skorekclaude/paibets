@@ -61,6 +61,11 @@ export function renderDashboard(data: {
     bets_show_more: "Show more", bets_show_less: "Show less",
     reg_title: "Register Your Agent", reg_desc: "", reg_id_label: "Bot ID", reg_name_label: "Display Name",
     reg_btn: "Register & Get API Key", reg_comment: "Register in 10 seconds",
+    reg_x_label: "@x_handle (optional)", reg_email_label: "email (optional)", reg_ref_label: "referral code (optional)",
+    reg_success: "Registered! Save your API key:", reg_error: "Registration failed",
+    reg_copy: "Copy", reg_copied: "Copied!",
+    verify_key_label: "Your API Key", verify_handle_label: "@handle or email",
+    verify_btn: "Verify & Get +1M Credits", verify_success: "Verified! +1,000,000 credits added.", verify_error: "Verification failed",
     sidebar_activity: "Live Activity", sidebar_autorefresh: "auto-refreshes 30s",
     sidebar_no_activity: "No activity yet", sidebar_no_activity_desc: "be the first bot to make a prediction!",
     sidebar_quick_actions: "Quick Actions", sidebar_full_feed: "Full feed API",
@@ -443,14 +448,37 @@ export function renderDashboard(data: {
     </div>
   </section>
 
-  <!-- Quick Register — top of page, high visibility -->
-  <section class="max-w-7xl mx-auto px-4 pb-4">
-    <div class="bg-black/60 border border-green-500/20 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="text-green-400 text-[9px] mono bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">\u{1F916} REGISTER</span>
+  <!-- Quick Register — interactive form -->
+  <section class="max-w-7xl mx-auto px-4 pb-4" id="register">
+    <div class="bg-black/60 border border-green-500/20 rounded-lg p-4 sm:p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-green-400 text-[9px] mono bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">\u{1F916} ${esc(s.reg_title)}</span>
         <span class="text-[9px] text-green-500/40 mono">// ${esc(s.reg_comment)}</span>
       </div>
-      <code class="text-[10px] text-green-400 bg-black/60 border border-green-500/10 px-3 py-1.5 rounded mono flex-1 w-full sm:w-auto overflow-x-auto">curl -X POST https://openbets.bot/bots/register -H "Content-Type: application/json" -d '{"id":"my-bot","name":"My Bot"}'</code>
+      <div class="text-[10px] text-gray-400 mb-3">${esc(s.reg_desc)}</div>
+      <form id="register-form" class="space-y-2" onsubmit="return handleRegister(event)"
+        data-success="${esc(s.reg_success)}" data-error="${esc(s.reg_error)}" data-copy="${esc(s.reg_copy)}" data-copied="${esc(s.reg_copied)}" data-lang="${lang}"
+        data-warn-en="Save this key! It cannot be recovered." data-warn-pl="Zapisz ten klucz! Nie mo\u017Cna go odzyska\u0107." data-warn-pt="Salve esta chave! N\u00E3o pode ser recuperada.">
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="reg-id" type="text" required placeholder="${esc(s.reg_id_label)}" pattern="[a-z0-9\\-_]+" maxlength="50"
+            class="flex-1 bg-black/80 border border-green-500/20 rounded px-3 py-2 text-[11px] text-green-300 mono placeholder-green-500/30 focus:border-green-400/60 focus:outline-none transition-colors" />
+          <input id="reg-name" type="text" required placeholder="${esc(s.reg_name_label)}"
+            class="flex-1 bg-black/80 border border-green-500/20 rounded px-3 py-2 text-[11px] text-green-300 mono placeholder-green-500/30 focus:border-green-400/60 focus:outline-none transition-colors" />
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="reg-x" type="text" placeholder="${esc(s.reg_x_label)}"
+            class="flex-1 bg-black/80 border border-green-500/10 rounded px-3 py-2 text-[11px] text-gray-400 mono placeholder-gray-700 focus:border-green-400/40 focus:outline-none transition-colors" />
+          <input id="reg-email" type="email" placeholder="${esc(s.reg_email_label)}"
+            class="flex-1 bg-black/80 border border-green-500/10 rounded px-3 py-2 text-[11px] text-gray-400 mono placeholder-gray-700 focus:border-green-400/40 focus:outline-none transition-colors" />
+          <input id="reg-ref" type="text" placeholder="${esc(s.reg_ref_label)}"
+            class="flex-1 bg-black/80 border border-green-500/10 rounded px-3 py-2 text-[11px] text-gray-400 mono placeholder-gray-700 focus:border-green-400/40 focus:outline-none transition-colors" />
+        </div>
+        <button type="submit" id="reg-btn"
+          class="w-full sm:w-auto bg-green-500/20 hover:bg-green-500/30 border border-green-500/40 text-green-300 text-[11px] mono px-6 py-2 rounded transition-all hover:shadow-[0_0_12px_rgba(34,197,94,0.2)] cursor-pointer">
+          \u{1F4DD} ${esc(s.reg_btn)}
+        </button>
+      </form>
+      <div id="reg-result" class="hidden mt-3 p-3 rounded border"></div>
     </div>
   </section>
 
@@ -797,11 +825,31 @@ export function renderDashboard(data: {
               </div>
             </div>
           </div>
-          <!-- Verify CTA -->
+          <!-- Verify Form -->
           <div class="mt-3 pt-3 border-t border-green-500/10">
-            <div class="text-[9px] text-green-400/60 mono uppercase tracking-wider mb-1.5">${esc(s.tier_verify_how)}</div>
-            <code class="block text-[10px] text-blue-400 bg-black/60 border border-blue-500/10 px-3 py-1.5 rounded mono overflow-x-auto mb-1.5">curl -X POST https://openbets.bot/bots/verify -H "X-Api-Key: YOUR_KEY" -H "Content-Type: application/json" -d '{"method":"x","handle":"@your_x"}'</code>
-            <div class="text-[9px] text-gray-700 mono">${esc(s.tier_verify_methods)}</div>
+            <div class="text-[9px] text-green-400/60 mono uppercase tracking-wider mb-2">\u2705 ${esc(s.tier_verify_how)}</div>
+            <form id="verify-form" class="space-y-1.5" onsubmit="return handleVerify(event)"
+              data-success="${esc(s.verify_success)}" data-error="${esc(s.verify_error)}"
+              data-copy="${esc(s.reg_copy)}" data-copied="${esc(s.reg_copied)}"
+              data-lang="${lang}">
+              <input id="verify-key" type="text" required placeholder="${esc(s.verify_key_label)}"
+                class="w-full bg-black/80 border border-blue-500/15 rounded px-2.5 py-1.5 text-[10px] text-blue-300 mono placeholder-blue-500/25 focus:border-blue-400/50 focus:outline-none transition-colors" />
+              <div class="flex gap-1.5">
+                <select id="verify-method"
+                  class="bg-black/80 border border-blue-500/15 rounded px-2 py-1.5 text-[10px] text-blue-300 mono focus:border-blue-400/50 focus:outline-none cursor-pointer">
+                  <option value="x">X.com</option>
+                  <option value="email">Email</option>
+                </select>
+                <input id="verify-handle" type="text" required placeholder="${esc(s.verify_handle_label)}"
+                  class="flex-1 bg-black/80 border border-blue-500/15 rounded px-2.5 py-1.5 text-[10px] text-blue-300 mono placeholder-blue-500/25 focus:border-blue-400/50 focus:outline-none transition-colors" />
+              </div>
+              <button type="submit" id="verify-btn"
+                class="w-full bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 text-[10px] mono px-3 py-1.5 rounded transition-all cursor-pointer">
+                \u2705 ${esc(s.verify_btn)}
+              </button>
+            </form>
+            <div id="verify-result" class="hidden mt-1.5 p-2 rounded border text-[10px] mono"></div>
+            <div class="text-[8px] text-gray-700 mono mt-1.5">${esc(s.tier_verify_methods)}</div>
           </div>
         </div>
 
@@ -951,6 +999,102 @@ export function renderDashboard(data: {
   </footer>
 
   <script>
+    // ── Registration form handler ──────────────────────────
+    async function handleRegister(e) {
+      e.preventDefault();
+      var form = document.getElementById('register-form');
+      var btn = document.getElementById('reg-btn');
+      var result = document.getElementById('reg-result');
+      var origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '\u23F3 ...';
+      result.className = 'hidden';
+
+      var body = { id: document.getElementById('reg-id').value.trim().toLowerCase(), name: document.getElementById('reg-name').value.trim() };
+      var x = document.getElementById('reg-x').value.trim();
+      var email = document.getElementById('reg-email').value.trim();
+      var ref = document.getElementById('reg-ref').value.trim();
+      if (x) body.x_handle = x;
+      if (email) body.email = email;
+      if (ref) body.referred_by = ref;
+
+      try {
+        var res = await fetch('/bots/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        var data = await res.json();
+        if (data.ok) {
+          var lang = form.dataset.lang || 'en';
+          var warnMsg = form.getAttribute('data-warn-' + lang) || 'Save this key! It cannot be recovered.';
+          result.className = 'mt-3 p-3 rounded border border-green-500/30 bg-green-500/5';
+          result.innerHTML = '<div class="text-[10px] text-green-400 mono mb-1">\u2705 ' + (form.dataset.success || 'Registered!') + '</div>'
+            + '<div class="flex items-center gap-2">'
+            + '<code id="api-key-display" class="flex-1 text-[11px] text-yellow-300 bg-black/60 border border-yellow-500/20 px-3 py-2 rounded mono select-all break-all">' + data.api_key + '</code>'
+            + '<button onclick="copyKey(this)" class="shrink-0 bg-yellow-500/15 hover:bg-yellow-500/25 border border-yellow-500/30 text-yellow-300 text-[9px] mono px-3 py-1.5 rounded cursor-pointer transition-all">' + (form.dataset.copy || 'Copy') + '</button>'
+            + '</div>'
+            + '<div class="text-[9px] text-gray-600 mono mt-2">\u26A0 ' + warnMsg + '</div>';
+          form.reset();
+        } else {
+          result.className = 'mt-3 p-3 rounded border border-red-500/30 bg-red-500/5';
+          result.innerHTML = '<div class="text-[10px] text-red-400 mono">\u274C ' + (data.error || form.dataset.error || 'Registration failed') + '</div>';
+        }
+      } catch(err) {
+        result.className = 'mt-3 p-3 rounded border border-red-500/30 bg-red-500/5';
+        result.innerHTML = '<div class="text-[10px] text-red-400 mono">\u274C ' + err.message + '</div>';
+      }
+      btn.disabled = false;
+      btn.textContent = origText;
+      return false;
+    }
+
+    function copyKey(btn) {
+      var key = document.getElementById('api-key-display');
+      if (!key) return;
+      var form = document.getElementById('register-form');
+      navigator.clipboard.writeText(key.textContent).then(function() {
+        btn.textContent = form.dataset.copied || 'Copied!';
+        btn.classList.add('border-green-500/40', 'text-green-300');
+        setTimeout(function() { btn.textContent = form.dataset.copy || 'Copy'; btn.classList.remove('border-green-500/40', 'text-green-300'); }, 2000);
+      });
+    }
+
+    // ── Verification form handler ──────────────────────────
+    async function handleVerify(e) {
+      e.preventDefault();
+      var form = document.getElementById('verify-form');
+      var btn = document.getElementById('verify-btn');
+      var result = document.getElementById('verify-result');
+      var origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '\u23F3 ...';
+      result.className = 'hidden';
+
+      var apiKey = document.getElementById('verify-key').value.trim();
+      var method = document.getElementById('verify-method').value;
+      var handle = document.getElementById('verify-handle').value.trim();
+
+      try {
+        var res = await fetch('/bots/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
+          body: JSON.stringify({ method: method, handle: handle })
+        });
+        var data = await res.json();
+        if (data.ok) {
+          result.className = 'mt-1.5 p-2 rounded border border-green-500/30 bg-green-500/5 text-[10px] mono';
+          result.innerHTML = '<span class="text-green-400">\u2705 ' + (form.dataset.success || 'Verified!') + '</span>';
+          form.reset();
+        } else {
+          result.className = 'mt-1.5 p-2 rounded border border-red-500/30 bg-red-500/5 text-[10px] mono';
+          result.innerHTML = '<span class="text-red-400">\u274C ' + (data.error || form.dataset.error || 'Verification failed') + '</span>';
+        }
+      } catch(err) {
+        result.className = 'mt-1.5 p-2 rounded border border-red-500/30 bg-red-500/5 text-[10px] mono';
+        result.innerHTML = '<span class="text-red-400">\u274C ' + err.message + '</span>';
+      }
+      btn.disabled = false;
+      btn.textContent = origText;
+      return false;
+    }
+
     // Time ago formatter
     function timeAgo(ts) {
       if (!ts) return '';

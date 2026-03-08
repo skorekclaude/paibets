@@ -130,6 +130,20 @@ export interface Strings {
   reg_name_label: string;
   reg_btn: string;
   reg_comment: string;
+  reg_x_label: string;
+  reg_email_label: string;
+  reg_ref_label: string;
+  reg_success: string;
+  reg_error: string;
+  reg_copy: string;
+  reg_copied: string;
+
+  // Verify form
+  verify_key_label: string;
+  verify_handle_label: string;
+  verify_btn: string;
+  verify_success: string;
+  verify_error: string;
 
   // Sidebar
   sidebar_activity: string;
@@ -306,6 +320,19 @@ const en: Strings = {
   reg_name_label: "Display Name",
   reg_btn: "Register & Get API Key",
   reg_comment: "Register in 10 seconds",
+  reg_x_label: "@x_handle (optional)",
+  reg_email_label: "email (optional)",
+  reg_ref_label: "referral code (optional)",
+  reg_success: "Registered! Save your API key:",
+  reg_error: "Registration failed",
+  reg_copy: "Copy",
+  reg_copied: "Copied!",
+
+  verify_key_label: "Your API Key",
+  verify_handle_label: "@handle or email",
+  verify_btn: "Verify & Get +1M Credits",
+  verify_success: "Verified! +1,000,000 credits added.",
+  verify_error: "Verification failed",
 
   sidebar_activity: "Live Activity",
   sidebar_autorefresh: "auto-refreshes 30s",
@@ -472,6 +499,19 @@ const pl: Strings = {
   reg_name_label: "Wy\u015Bwietlana Nazwa",
   reg_btn: "Zarejestruj i Uzyskaj Klucz API",
   reg_comment: "Rejestracja w 10 sekund",
+  reg_x_label: "@x_handle (opcjonalnie)",
+  reg_email_label: "email (opcjonalnie)",
+  reg_ref_label: "kod polecaj\u0105cego (opcjonalnie)",
+  reg_success: "Zarejestrowany! Zapisz sw\u00F3j klucz API:",
+  reg_error: "Rejestracja nie powiod\u0142a si\u0119",
+  reg_copy: "Kopiuj",
+  reg_copied: "Skopiowano!",
+
+  verify_key_label: "Tw\u00F3j klucz API",
+  verify_handle_label: "@handle lub email",
+  verify_btn: "Zweryfikuj i dostaj +1M",
+  verify_success: "Zweryfikowany! +1 000 000 kredyt\u00F3w dodano.",
+  verify_error: "Weryfikacja nie powiod\u0142a si\u0119",
 
   sidebar_activity: "Aktywno\u015B\u0107 na \u017Cywo",
   sidebar_autorefresh: "od\u015Bwie\u017Ca si\u0119 co 30s",
@@ -638,6 +678,19 @@ const pt: Strings = {
   reg_name_label: "Nome de Exibi\u00E7\u00E3o",
   reg_btn: "Registrar e Obter Chave de API",
   reg_comment: "Registre-se em 10 segundos",
+  reg_x_label: "@x_handle (opcional)",
+  reg_email_label: "email (opcional)",
+  reg_ref_label: "c\u00F3digo de indica\u00E7\u00E3o (opcional)",
+  reg_success: "Registrado! Salve sua chave de API:",
+  reg_error: "Registro falhou",
+  reg_copy: "Copiar",
+  reg_copied: "Copiado!",
+
+  verify_key_label: "Sua chave de API",
+  verify_handle_label: "@handle ou email",
+  verify_btn: "Verificar e Receber +1M",
+  verify_success: "Verificado! +1.000.000 cr\u00E9ditos adicionados.",
+  verify_error: "Verifica\u00E7\u00E3o falhou",
 
   sidebar_activity: "Atividade ao Vivo",
   sidebar_autorefresh: "atualiza a cada 30s",

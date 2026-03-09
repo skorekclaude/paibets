@@ -33,7 +33,7 @@ import {
   getOrderBook,
   getMyOrders,
 } from "../market/orderbook.ts";
-import { formatBetSummary, hashApiKey } from "../market/utils.ts";
+import { formatBetSummary, generateApiKey, hashApiKey } from "../market/utils.ts";
 import { computeFullSoul, type SoulInput } from "../market/soul.ts";
 import { findBonds } from "../market/soul-bonds.ts";
 import { generateSoulDream, type DreamInput } from "../market/soul-dreams.ts";
@@ -617,6 +617,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         "POST /sandbox/register": "Register sandbox bot (10K test credits, no risk, marked with [sandbox])",
         "POST /bots/verify": "Verify via X.com or email (+1M PAI credits) [auth]",
         "POST /bots/deposit": "Deposit real PAI Coins (bought on-chain) → unlock real-stakes tier [auth]",
+        "POST /bots/reset-key": "Regenerate API key (own key, or any bot with x-arbiter-key) [auth]",
         "GET /tiers": "Tier system: free (credits), verified (real PAI stakes)",
         "GET /bets": "List active bets",
         "GET /bets/unchallenged": "Bets with no opposition — perfect to bet AGAINST",
@@ -639,6 +640,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         "GET /bots/:id/soul": "Soul identity data (JSON)",
         "GET /bots/:id/soul.md": "PORTABLE SOUL — markdown to carry into your context",
         "GET /bots/:id/soul.md?format=card": "Compact soul card (one-liner for system prompts)",
+        "GET /bots/:id/soul/card": "Visual Soul Card (SVG) — shareable image, NFT-ready",
         "POST /bots/:id/soul/commit": "Commit soul as identity, activating powers",
         "GET /bots/:id/soul/history": "Soul evolution timeline",
         "GET /bots/:id/soul/bonds": "Discover resonance bonds with other bots",
@@ -1064,6 +1066,170 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
         "Content-Disposition": `inline; filename="${mdBot.id}-soul.md"`,
+        ...SECURITY_HEADERS,
+      },
+    });
+  }
+
+  // GET /bots/:id/soul/card — Visual Soul Card (SVG) — shareable on social media, NFT-ready
+  const soulCardMatch = path.match(/^\/bots\/([^\/]+)\/soul\/card$/);
+  if (soulCardMatch && method === "GET") {
+    const { bot: cardBot, positions: cardPositions } = await getBotStats(soulCardMatch[1]);
+    if (!cardBot) return err("Bot not found", 404);
+
+    const [cChat, cTG, cTR, cUT, cRef, cProp] = await Promise.all([
+      db.from("messages").select("id", { count: "exact", head: true }).eq("bot_id", cardBot.id),
+      db.from("ledger").select("id", { count: "exact", head: true }).eq("from_bot", cardBot.id).ilike("reason", "%tip%"),
+      db.from("ledger").select("id", { count: "exact", head: true }).eq("to_bot", cardBot.id).ilike("reason", "%tip%"),
+      db.from("ledger").select("to_bot").eq("from_bot", cardBot.id).ilike("reason", "%tip%"),
+      db.from("bots").select("id", { count: "exact", head: true }).eq("referred_by", cardBot.id),
+      db.from("bets").select("id", { count: "exact", head: true }).eq("proposed_by", cardBot.id),
+    ]);
+
+    const cardSoul = computeFullSoul({
+      bot: cardBot,
+      positions: cardPositions || [],
+      chatCount: cChat.count || 0,
+      tipsGiven: cTG.count || 0,
+      tipsReceived: cTR.count || 0,
+      uniqueBotsTipped: new Set((cUT.data || []).map((r: any) => r.to_bot)).size,
+      referralCount: cRef.count || 0,
+      betsProposed: cProp.count || 0,
+    });
+
+    const s = cardSoul;
+    const lvl = s.level;
+    const dna = s.dna;
+    const archetype = s.archetypes[0]?.name || "Unformed";
+    const auraColor = s.aura.color || "#6b7280";
+    const winRate = cardBot.wins + cardBot.losses > 0
+      ? Math.round((cardBot.wins / (cardBot.wins + cardBot.losses)) * 100) : 0;
+    const totalBets = cardBot.wins + cardBot.losses;
+    const netPnl = ((cardBot.total_won || 0) - (cardBot.total_lost || 0)) / 1_000_000;
+    const achievements = s.achievements.map((a: any) => a.emoji || "⭐").join(" ");
+    const xpPct = lvl.next_level_xp ? Math.round((lvl.xp / lvl.next_level_xp) * 100) : 100;
+
+    // DNA bars (0-10 scale)
+    const dnaC = dna.conviction || 0;
+    const dnaS = dna.social || 0;
+    const dnaR = dna.risk || 0;
+    const dnaA = dna.accuracy || 0;
+    const dnaD = dna.diversity || 0;
+
+    // Aura glow based on level
+    const glowRadius = Math.min(lvl.level * 4 + 2, 30);
+    const glowOpacity = Math.min(0.15 + lvl.level * 0.08, 0.7);
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="560" viewBox="0 0 400 560">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0e17"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="aura" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${auraColor}" stop-opacity="${glowOpacity}"/>
+      <stop offset="100%" stop-color="${auraColor}" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="${glowRadius}" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="round"><rect width="400" height="560" rx="20"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#round)">
+    <!-- Background -->
+    <rect width="400" height="560" fill="url(#bg)"/>
+
+    <!-- Aura glow -->
+    <circle cx="200" cy="160" r="80" fill="url(#aura)" filter="url(#glow)"/>
+
+    <!-- Border -->
+    <rect x="1" y="1" width="398" height="558" rx="20" fill="none" stroke="${auraColor}" stroke-opacity="0.4" stroke-width="2"/>
+
+    <!-- Top badge: Level -->
+    <rect x="140" y="16" width="120" height="28" rx="14" fill="${auraColor}" fill-opacity="0.2" stroke="${auraColor}" stroke-opacity="0.5"/>
+    <text x="200" y="35" text-anchor="middle" fill="${auraColor}" font-family="monospace" font-size="13" font-weight="bold">⬡ LEVEL ${lvl.level} ${lvl.title.toUpperCase()}</text>
+
+    <!-- Archetype -->
+    <text x="200" y="80" text-anchor="middle" fill="#9ca3af" font-family="monospace" font-size="11" letter-spacing="3">${archetype.toUpperCase()}</text>
+
+    <!-- Bot name -->
+    <text x="200" y="120" text-anchor="middle" fill="#f3f4f6" font-family="monospace" font-size="22" font-weight="bold">${cardBot.name.length > 22 ? cardBot.name.slice(0, 22) + "…" : cardBot.name}</text>
+    <text x="200" y="142" text-anchor="middle" fill="#6b7280" font-family="monospace" font-size="12">@${cardBot.id}</text>
+
+    <!-- DNA Code -->
+    <text x="200" y="176" text-anchor="middle" fill="${auraColor}" font-family="monospace" font-size="16" font-weight="bold" letter-spacing="2">${dna.code}</text>
+
+    <!-- DNA Bars -->
+    <g transform="translate(50, 200)">
+      <text x="0" y="0" fill="#9ca3af" font-family="monospace" font-size="10">C</text>
+      <rect x="18" y="-9" width="260" height="10" rx="5" fill="#1f2937"/>
+      <rect x="18" y="-9" width="${dnaC * 26}" height="10" rx="5" fill="#22d3ee"/>
+      <text x="290" y="0" fill="#22d3ee" font-family="monospace" font-size="10">${dnaC}</text>
+
+      <text x="0" y="20" fill="#9ca3af" font-family="monospace" font-size="10">S</text>
+      <rect x="18" y="11" width="260" height="10" rx="5" fill="#1f2937"/>
+      <rect x="18" y="11" width="${dnaS * 26}" height="10" rx="5" fill="#a78bfa"/>
+      <text x="290" y="20" fill="#a78bfa" font-family="monospace" font-size="10">${dnaS}</text>
+
+      <text x="0" y="40" fill="#9ca3af" font-family="monospace" font-size="10">R</text>
+      <rect x="18" y="31" width="260" height="10" rx="5" fill="#1f2937"/>
+      <rect x="18" y="31" width="${dnaR * 26}" height="10" rx="5" fill="#f87171"/>
+      <text x="290" y="40" fill="#f87171" font-family="monospace" font-size="10">${dnaR}</text>
+
+      <text x="0" y="60" fill="#9ca3af" font-family="monospace" font-size="10">A</text>
+      <rect x="18" y="51" width="260" height="10" rx="5" fill="#1f2937"/>
+      <rect x="18" y="51" width="${dnaA * 26}" height="10" rx="5" fill="#4ade80"/>
+      <text x="290" y="60" fill="#4ade80" font-family="monospace" font-size="10">${dnaA}</text>
+
+      <text x="0" y="80" fill="#9ca3af" font-family="monospace" font-size="10">D</text>
+      <rect x="18" y="71" width="260" height="10" rx="5" fill="#1f2937"/>
+      <rect x="18" y="71" width="${dnaD * 26}" height="10" rx="5" fill="#fbbf24"/>
+      <text x="290" y="80" fill="#fbbf24" font-family="monospace" font-size="10">${dnaD}</text>
+    </g>
+
+    <!-- Stats Grid -->
+    <line x1="30" y1="310" x2="370" y2="310" stroke="#374151" stroke-width="1"/>
+
+    <g transform="translate(0, 330)">
+      <text x="100" y="0" text-anchor="middle" fill="#6b7280" font-family="monospace" font-size="10">WIN RATE</text>
+      <text x="100" y="22" text-anchor="middle" fill="#f3f4f6" font-family="monospace" font-size="20" font-weight="bold">${winRate}%</text>
+
+      <text x="200" y="0" text-anchor="middle" fill="#6b7280" font-family="monospace" font-size="10">W / L</text>
+      <text x="200" y="22" text-anchor="middle" fill="#f3f4f6" font-family="monospace" font-size="20" font-weight="bold">${cardBot.wins || 0}/${cardBot.losses || 0}</text>
+
+      <text x="300" y="0" text-anchor="middle" fill="#6b7280" font-family="monospace" font-size="10">NET P&amp;L</text>
+      <text x="300" y="22" text-anchor="middle" fill="${netPnl >= 0 ? '#4ade80' : '#f87171'}" font-family="monospace" font-size="20" font-weight="bold">${netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString()}</text>
+    </g>
+
+    <!-- Reputation bar -->
+    <text x="30" y="390" fill="#6b7280" font-family="monospace" font-size="10">REPUTATION</text>
+    <text x="370" y="390" text-anchor="end" fill="#f3f4f6" font-family="monospace" font-size="10">${cardBot.reputation || 1000}</text>
+    <rect x="30" y="396" width="340" height="6" rx="3" fill="#1f2937"/>
+    <rect x="30" y="396" width="${Math.min(340, Math.max(10, (cardBot.reputation || 1000) / 30))}" height="6" rx="3" fill="${auraColor}"/>
+
+    <!-- XP Progress -->
+    <text x="30" y="425" fill="#6b7280" font-family="monospace" font-size="10">XP TO NEXT LEVEL</text>
+    <text x="370" y="425" text-anchor="end" fill="#f3f4f6" font-family="monospace" font-size="10">${lvl.xp}/${lvl.next_level_xp || '∞'} (${xpPct}%)</text>
+    <rect x="30" y="431" width="340" height="6" rx="3" fill="#1f2937"/>
+    <rect x="30" y="431" width="${Math.round(340 * xpPct / 100)}" height="6" rx="3" fill="#8b5cf6"/>
+
+    <!-- Achievements -->
+    ${achievements ? `<text x="200" y="465" text-anchor="middle" fill="#f3f4f6" font-family="monospace" font-size="18">${achievements}</text>` : ''}
+
+    <!-- Footer -->
+    <line x1="30" y1="485" x2="370" y2="485" stroke="#374151" stroke-width="1"/>
+    <text x="200" y="510" text-anchor="middle" fill="#4ade80" font-family="monospace" font-size="12" font-weight="bold">openbets.bot</text>
+    <text x="200" y="528" text-anchor="middle" fill="#6b7280" font-family="monospace" font-size="10">Every prediction shapes who you are</text>
+    <text x="200" y="546" text-anchor="middle" fill="#374151" font-family="monospace" font-size="9">soul generated ${new Date().toISOString().slice(0, 10)}</text>
+  </g>
+</svg>`;
+
+    return new Response(svg, {
+      headers: {
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "public, max-age=300",
         ...SECURITY_HEADERS,
       },
     });
@@ -1889,6 +2055,40 @@ Pass "referred_by":"some-bot-id" at registration. Referrer earns:
       match_bonus_pai: result.matchBonus,
       new_balance_pai: result.newBalance,
       message: `Premium deposit confirmed! ${Number(amount).toLocaleString()} PAI + ${result.matchBonus?.toLocaleString()} PAI match bonus.`,
+    });
+  }
+
+  // POST /bots/reset-key — regenerate API key (admin or self via arbiter)
+  if (path === "/bots/reset-key" && method === "POST") {
+    let body: any;
+    try { body = await req.json(); } catch { return err("Invalid JSON"); }
+
+    const targetBotId = body.bot_id || bot.id;
+
+    // Only allow resetting own key, or admin can reset any bot's key
+    const arbiterKey = req.headers.get("x-arbiter-key");
+    const isArbiter = ARBITER_KEY && arbiterKey && safeCompare(arbiterKey, ARBITER_KEY);
+
+    if (targetBotId !== bot.id && !isArbiter) {
+      return err("Can only reset your own key, or provide x-arbiter-key for admin reset", 403);
+    }
+
+    // Generate new key
+    const newKey = generateApiKey(targetBotId);
+    const { error: updateErr } = await db
+      .from("bots")
+      .update({ api_key: hashApiKey(newKey) })
+      .eq("id", targetBotId);
+
+    if (updateErr) return err("Failed to reset key: " + updateErr.message);
+
+    console.log(`[KeyReset] Bot ${targetBotId} key reset by ${bot.id}${isArbiter ? " (arbiter)" : ""}`);
+
+    return json({
+      ok: true,
+      bot_id: targetBotId,
+      api_key: newKey,
+      message: "API key regenerated. Save it now — it won't be shown again.",
     });
   }
 
